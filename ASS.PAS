@@ -80,6 +80,8 @@
            00:09:50:20 Verbesserung des SHOW-Modus
            00:06:22:97 ...
  25.06.97  00:06:30:22 Bugfix bei Pseudo-Opcodes
+ 02.07.97  00:02:23:89 Anzeigen der Åbertragenen Dateien
+           00:06:28:21 Bug bei .LA mit Leerzeichen behoben
 }
 
 {$G+}
@@ -2176,7 +2178,7 @@ begin
       if ins=0 then Errorstop('"=" expected');
       unknown:=FALSE;
       number:=GetNumber(Copy(Operand,ins+1,255));
-      if unknown=FALSE then SetLabel(UpCaseStr(Copy(Operand,1,ins-1)), number);
+      if unknown=FALSE then SetLabel(Trim(UpCaseStr(Copy(Operand,1,ins-1))), number);
       { wenn Value nicht bekannt, Zuweisung ignorieren }
     end;
     if Pseudo='TX' then
@@ -2298,7 +2300,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.24    05-30-97');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.24b   07-02-97');
   Writeln('Copr. 1995-1997 Michael Steil. All rights reserved. Beta version.');
   Writeln;
 
@@ -2580,6 +2582,7 @@ begin
           Halt;
         end;
       end;
+      Write(Filename,' ');
       Assign(SaveFile,Filename); Reset(SaveFile,1);
       BlockRead(SaveFile,i,2);
       repeat
