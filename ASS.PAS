@@ -110,6 +110,8 @@
            00:01:59:60 Bugfix
  23.05.98  00:03:10:36 -KEY, -KEY-
            00:06:31:37 "Trying to establish connection"
+ 27.05.98  00:21:20:76 Secret message
+ 01.06.98  00:35:37:99 GoDot StartUp...
 }
 
 {$G+}
@@ -2740,7 +2742,8 @@ end;
 
 
 { Main }
-
+var b1: word; b2: byte;  { fÅr geheime Botschaft }
+const s:string=#$F8+#$E9+#$DE+#$DB+#$E0+#$DF+#$D5+#$EF;
 begin
   COPYRIGHT1; COPYRIGHT2; { nur Dummies }
   InitPort;
@@ -2751,7 +2754,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.28    05-21-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.28c   05-27-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2765,6 +2768,11 @@ begin
     end;
     Dec(i);
   until i=0;
+
+{ geheime Botschaft }
+  if(ParamCount=1)and(Length(ParamStr(1))=8)then begin a:=ParamStr(1);for i:=1to 8do begin b1:=b1+Ord(a[i])*i;
+  b2:=b2 xor Ord(a[i]);end;if(b1=3717)and(b2=47)then begin Write('MXASS is dedicated to ',a,'. ');
+  for i:=1to 8do begin if i=5 then Write(' ');Write(Chr(Ord(a[i])+Ord(s[i])));end;Writeln('!');Halt;end;end;
 
 { Kommandozeile parsen }
   ParameterFile:=''; Transfer:=0; SaveAs:=0; Symbols:=FALSE; WaitForKey:=FALSE;
@@ -3119,7 +3127,8 @@ end.
  - SHOW bei Makros                                                    190598
  - Mnemos an Position 1                                          SOREX210598
  - Reihenfolge Code/Daten beim Transfer Ñndern!                  SOREX210598
- - Offset<=Offset kann gelîst werden                             SOREX210598
+ - Offset<=Offset                                                SOREX210598
+ - ERRORLEVEL                                                         270598
 >let it print the real line# instead of the physical opcode line#
 >
 >it gives error on lda$xxxx,x ldaxx,x type opcodes although that
