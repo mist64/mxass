@@ -1,0 +1,105 @@
+*** 0 *** ohne Argument
+ccf 3f 0
+cpd eda9 0
+cpdr edb9 0
+cpi eda1 0
+cpir ed81 0
+cpl 2f 0
+daa 27 0
+di f3 0
+ei fb 0
+exx d9 0
+halt 76 0
+ind edaa 0
+indr edba 0
+ini eda2 0
+inir edb2 0
+ldd eda8 0
+lddr edb8 0
+ldi eda0 0
+ldir edb0 0
+neg ed44 0
+nop 00 0
+otdr edbb 0
+otir edb3 0
+outd edab 0
+outi eda3 0
+ret c9 0
+reti ed4d 0
+retn ed45 0
+rla 17 0
+rlca 07 0
+rld ed6f 0
+rra 1f 0
+rrca 0f 0
+rrd ed67 0
+scf 37 0
+*** 1 *** A, B/C/D/E/H/L/(HL)/A;  Byte + regA
+adc 88 1
+add 80 1
+sbc 98 1
+sub 90 1
+*** 2 *** A, n
+adc ce 2
+add c6 2
+sbc de 2
+sub d6 2
+*** 3 *** HL, BC/DE/HL/SP;  letztes Byte + regC
+adc ed4a 3
+add 09 3
+sbc ed42 3
+*** 4 *** B/C/D/E/H/L/(HL)/A;  letztes Byte + regA
+and a0 4
+cp b8 4
+or b0 4
+rl cb10 4
+rlc cb00 4
+rr cb18 4
+rrr cb08 4
+sla cb20 4
+sra cb28 4
+srl cb38 4
+xor a8 4
+*** 5 *** n
+and e6 5
+cp fe 5
+or f6 5
+xor ee 5
+*** 6 *** B/BC/C/D/DE/E/H/HL/L/(HL)/SP/A;  Byte + regD
+dec 05 6
+inc 04 6
+*** 7 *** x, B/C/D/E/H/L/(HL)/A;  letztes Byte + (x*8) + regA
+bit cb40 7
+res cb80 7
+set cbc0 7
+*** 8 *** nn
+call cd 8
+jp c3 8
+*** 9 *** nn; Umsetzung nach relativ!
+jr 18 9
+djnz 10 9
+*** A *** cond, nn;  Byte + cond
+call c4 a
+jp c2 a
+*** B *** cond, nn;  Byte + cond; Umsetzung nach relativ!
+jr 20 b
+*** C *** cond;  Byte + cond
+ret c0 c
+*** D *** reg,(c);  letztes Byte + regE
+in ed40 d
+*** E *** (c),reg;  letztes Byte + regE
+out ed41 e
+*** F *** reg16;  Byte + regF
+pop c1 f
+push c5 f
+
+*** REST
+*jp (hl) e9
+*ex (sp),hl e3
+*ex af,af' 08
+*ex de,hl eb
+*im 0 ed46
+*im 1 ed56
+*im 2 ed5e
+*in a,(n) db
+*out (n),a d3
