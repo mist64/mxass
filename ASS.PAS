@@ -85,6 +85,7 @@
  16.08.97  01:09:10:58 KompatibilitÑt zu anderen Assemblern: #, DC, EQU
            00:23:34:89 ...
  17.08.97  00:40:31:78 WDC: GEQU, DS, ANOP, 65816 ON/OFF, START, END, LONGA/I
+ 18.08.97  00:19:07:08 Table Assembler: .EQU, .DB, .DW, .ORG
 }
 
 {$G+}
@@ -370,12 +371,12 @@ begin
     end else begin
       Readln(actSourceFile, Line);
     end;
-    if (Line[1]='#') or (Line[1]='*') then Line:=''; { Kommentar }
+    if Line[1]='*' then Line:=''; { Kommentar }
     ins:=Pos(SEMICOLON, Line);
     if ins>0 then Line[0]:=Chr(ins-1); { REMs lîschen }
  { Zeile mit Label und Mnemo aufspalten }
     if (Line[0]<>#0) and (Line[1]<>' ') and (Line[1]<>#9)
-    and (Line[1]<>'.') and (NextLineInBuffer=FALSE) then
+    and (Line[1]<>'.') and (Line[1]<>'#') and (NextLineInBuffer=FALSE) then
     begin        { ^ Pseudo-Opcodes dÅrfen weiterhin an 1. Stelle stehen }
       ins:=Pos(' ', Line); if ins=0 then ins:=255;
       ins2:=Pos(#9, Line); if ins2=0 then ins2:=255;
@@ -401,7 +402,7 @@ EQU:
     Line:=Trim(Line);
     if Line<>'' then
     begin
-      if UpCaseStr(Copy(Line,1,8))='.INCLUDE' then
+      if (UpCaseStr(Copy(Line,2,7))='INCLUDE') and ((Line[1]='.') or (Line[1]='#')) then
       begin
         IncFile:=Trim(Copy(Line,9,255));
         if IncFile[1]=QUOTE then IncFile:=Copy(IncFile,2,255); { Quotes weg }
@@ -2221,6 +2222,7 @@ end;
 
 function Assemble(curL: string): string;
 label codeok;
+var Operand2,b: string;
 begin
   a:='';
   if curL[1]='.' then { Pseudo-Opcode }
@@ -2271,7 +2273,7 @@ begin
     end;
     if Pseudo='PE' then begin AsciiFlag:=0; PseudoOK:=TRUE; end;
     if Pseudo='AS' then begin AsciiFlag:=1; PseudoOk:=TRUE; end;
-    if Pseudo='BA' then
+    if (Pseudo='BA') or (Pseudo='OR') then { .ba oder .org }
     begin
       PseudoOK:=TRUE;
       unknown:=FALSE;
@@ -2311,13 +2313,22 @@ begin
       Operand:=Operand+',';
       a:='';
       repeat
-        ins:=Pos(',',Copy(Operand,insold,255));
+        ins:=Pos(',',KillQuotes(Copy(Operand,insold,255)));
         if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
         unknown:=FALSE;
-        number:=GetNumber(Copy(Operand,insold,ins-1));
-        if unknown then number:=0;
-        if number>256 then Errorstop('Byte > 8 Bit!');
-        a:=a+Chr(number);
+        Operand2:=Copy(Operand,insold,ins-1);
+        if (Operand2[1]='"') and (Operand2[Length(Operand2)]='"') then
+        { ASCII-String }
+        begin
+          b:=Copy(Operand2,2,Length(Operand2)-2);
+          if (AsciiFlag=0) and (Pass=2) then b:=SPetscii(b);
+          a:=a+b;
+        end else begin
+          number:=GetNumber(Operand2);
+          if unknown then number:=0;
+          if number>256 then Errorstop('Byte > 8 Bit!');
+          a:=a+Chr(number);
+        end;
         insold:=insold+ins;
       until FALSE;
     end;
@@ -2349,7 +2360,7 @@ begin
       a:=SPetscii(a);
       a:=SScrCode(a);
     end;
-    if Pseudo='WO' then
+    if (Pseudo='WO') or (Pseudo='DW') then
     begin
       PseudoOK:=TRUE;
       insold:=1;
@@ -2450,8 +2461,8 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.24b   07-02-97');
-  Writeln('Copr. 1995-1997 Michael Steil. All rights reserved. Beta version.');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.25b   08-28-97');
+  Writeln('Copr. 1995-1997 Michael Steil. All rights reserved.');
   Writeln;
 
   ASSDirectory:=ParamStr(0);
@@ -2784,6 +2795,7 @@ end.
  - Z80-Assembler                                               191196/290597
  - Pseudo-Statements mÅssen auch in Makros erlaubt sein!       191196/300597
  - Makros in Z80-Code                                          300597/300597
+ - Unterstrich _ mu· in Labelnamen erlaubt sein                060497/170897
 
 ****************************************************************************
  geplante Erweiterungen:
@@ -2806,10 +2818,9 @@ end.
  - Synchronisationsfehler erkennen                                    260197
  - Abbruch bei Transfer                                         CHECKY080397
  - Flexible Port-Angabe fÅr PC64 UND 64NET per Parameter              090397
- - Unterstrich _ mu· in Labelnamen erlaubt sein                       060497
  - mehrere Bases; Base<>Position im Speicher                     HOOGO210597
  - GEOS!                                                              210597
- - Linken von Libraries/Emulatoren                                    210597
+ - Linken von Libraries/Prozessor-Emulatoren                          210597
  - Transfer von 0 Bytes abfangen!                                     210597
  - Bedingtes Assemblieren mit .if                                     280597
  - Aufruf eines externen öbertragungsprogramms                        300597
@@ -2826,4 +2837,8 @@ end.
  - Unterscheidung von $0002 und DP:$02 beim 65816 (siehe Seite 202)   170897
  - DC A'ASCII'                                                        170897
  - GB Z80                                                             180897
+ - $ = aktuelle Position                                              180897
+ - '' statt ""                                                        180897
+ - #define fÅr Makros                                                 180897
+ - Reassembler                                                        180897
 *)
