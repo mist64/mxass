@@ -96,6 +96,8 @@
            00:22:04:37 * als aktuelle Adresse, .ds > 255, .ds=0-Bugfix
            00:10:03:25 *-Bugfix
  17.03.98  00:15:46:94 Base-Definition Åber *=$C000 (Turbo Ass)
+           00:15:01:20 = ohne Space davor
+           00:05:20:05 Bugfix bei Spaces in RechenausdrÅcken
 }
 
 {$G+}
@@ -128,6 +130,10 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
       SWITCHES='-/';
       SEP=#0+#1+#2+#3+#4+#5+#6+#7+#8+#9+#10+#11+#12+#13+#14+#15+#16+#17+#18+
           #19+#20+#21+#22+#23+#24+#25+#26+#27+#28+#29+#30+#31+#32+#33+#35+#38+
+          #39+        #42+#43+#44+#45+#46+#47+#58+#59+#61+#63+#64+#91+#92+#93+
+          #94+#96+#123+#124+#125+#126+#127;
+      CALCSEP=#0+#1+#2+#3+#4+#5+#6+#7+#8+#9+#10+#11+#12+#13+#14+#15+#16+#17+#18+
+          #19+#20+#21+#22+#23+#24+#25+#26+#27+#28+#29+#30+#31+    #33+#35+#38+
           #39+        #42+#43+#44+#45+#46+#47+#58+#59+#61+#63+#64+#91+#92+#93+
           #94+#96+#123+#124+#125+#126+#127;
       KEINRECHENZEICHEN=#0;
@@ -333,6 +339,10 @@ function FindSeparator(S: string): byte;
 begin
   FindSeparator:=FindAny(SEP,KillQuotes(S));
 end;
+function FindCalcSeparator(S: string): byte;
+begin
+  FindCalcSeparator:=FindAny(CalcSEP,KillQuotes(S));
+end;
 
 function FindFile(Filename: string): boolean;
 var SeF, OfF: word;
@@ -400,6 +410,11 @@ begin
          ((testequ[1]='=') and (testequ[0]<>#0)) then goto EQU;
       if ins<>255 then
       begin
+        if Line[ins-1]='=' then begin
+          { fÅr =-Routine von spÑter ein Space einfÅgen }
+          Line:=Copy(Line,1,ins-2)+' '+Copy(Line,ins-1,255);
+          goto EQU;
+        end;
         Line2:=Copy(Line,ins+1,255);
         Line[0]:=Chr(ins-1);
         if Line[Length(Line)]<>COLON then Line:=Line+COLON;
@@ -640,9 +655,9 @@ begin
     locallabelflag:=FALSE;
   end;
   if (S[1]='*') and (S<>'') then begin
-    if Length(S)>1 then ins:=2 else ins:=0;
+    if Length(S)>1 then ins:=FindCalcSeparator(Copy(S,2,255))+1 else ins:=0;
   end else begin
-    ins:=FindSeparator(S);
+    ins:=FindCalcSeparator(S);
   end;
   if ins>0 then { komplexer Ausdruck mit Rechenzeichen }
   begin
@@ -651,9 +666,9 @@ begin
     Rechenzeichen:=S[ins];
     if locallabelflag then
     begin
-      S:=Copy(realS,1,ins); { echtes Label wiederherstellen }
+      S:=Trim(Copy(realS,1,ins)); { echtes Label wiederherstellen }
     end else begin
-      S:=Copy(S,1,ins-1);
+      S:=Trim(Copy(S,1,ins-1));
     end;
   end else begin
     Rechenzeichen:=KEINRECHENZEICHEN;
@@ -1008,11 +1023,24 @@ DCW:
     end;
     if not PseudoOK then Operand:=Trim(Operand); { fÅr nÑchsten Test }
     testequ:=UpCaseStr(Copy(Operand,1,4));
-    if ((Copy(testequ,1,3)='EQU') or (testequ='GEQU') or (testequ='.EQU') or ((testequ[1]='=') and (testequ[0]<>#0)))
+    if (
+        (Copy(testequ,1,3)='EQU') or
+        (testequ='GEQU') or
+        (testequ='.EQU') or
+        ((testequ[1]='=') and (testequ[0]<>#0))
+       )
        and (PseudoOK=FALSE) then
     begin
-      if (testequ[1]='=') and (testequ[0]<>#0) then Operand:=Trim(Copy(Operand,2,255)) else
-        if testequ='GEQU' then Operand:=Trim(Copy(Operand,5,255)) else Operand:=Trim(Copy(Operand,4,255));
+      if (testequ[1]='=') and (testequ[0]<>#0) then begin
+        Operand:=Trim(Copy(Operand,2,255))
+      end else begin
+
+        if testequ='GEQU' then begin
+          Operand:=Trim(Copy(Operand,5,255))
+        end else begin
+          Operand:=Trim(Copy(Operand,4,255));
+        end;
+      end;
       PseudoOK:=TRUE; a:='';
       unknown:=FALSE;
       number:=GetNumber(Operand);
@@ -2928,5 +2956,6 @@ end.
  - '' statt ""                                                        180897
  - #define fÅr Makros                                                 180897
  - Reassembler                                                        180897
- - Sharewareversion:
+ - Sharewareversion: Sonderbyte nach jedem RTS                        180897
+ - Alternative zu .petscii, mit Sachen wie {orange}                   180897
 *)
