@@ -84,13 +84,14 @@
            00:06:28:21 Bug bei .LA mit Leerzeichen behoben
  16.08.97  01:09:10:58 Kompatibilit„t zu anderen Assemblern: #, DC, EQU
            00:23:34:89 ...
- 17.08.97  00:40:31:78 WDC: GEQU, DS, ANOP, 65816 ON/OFF, START, END, LONGA/I
- 18.08.97  00:19:07:08 Table Assembler: .EQU, .DB, .DW, .ORG
+ 17.08.97  00:40:31:78 GEQU,DS,ANOP,65816 ON/OFF,START,END,LONGA/I (WDC-Ass)
+ 18.08.97  00:19:07:08 .EQU, .DB, .DW, .ORG (Table Assembler)
  05.03.98  00:12:05:65 Bugfix: Punkte in/L„nge von Datei/Verzeichnisnamen
- 06.03.98  00:06:03:82 .start
-           00:07:37:75 Giga-Ass: .eq, .te, .ds
- 11.03.98  00:07:31:53 '=' statt EQU, .setpc, .b, .w
- 14.03.98  00:19:31:23 .object wie -PRG, mit variablem Dateinamen
+ 06.03.98  00:06:03:82 .start (Giga-Ass)
+           00:07:37:75 .eq, .te, .ds (Giga-Ass)
+ 11.03.98  00:07:31:53 '=' wie EQU, .setpc, .b, .w (Professional Ass)
+ 14.03.98  00:19:31:23 .ob wie -PRG, mit variablem Dateinamen (Hypra-Ass)
+           00:13:59:10 .en als Ende des Quelltexts (Hypra-Ass)
 }
 
 {$G+}
@@ -123,7 +124,7 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
       SWITCHES='-/';
       SEP=#0+#1+#2+#3+#4+#5+#6+#7+#8+#9+#10+#11+#12+#13+#14+#15+#16+#17+#18+
           #19+#20+#21+#22+#23+#24+#25+#26+#27+#28+#29+#30+#31+#32+#33+#35+#38+
-          #39+#40+#41+#42+#43+#44+#45+#46+#47+#58+#59+#61+#63+#64+#91+#92+#93+
+          #39+        #42+#43+#44+#45+#46+#47+#58+#59+#61+#63+#64+#91+#92+#93+
           #94+#96+#123+#124+#125+#126+#127;
       KEINRECHENZEICHEN=#0;
       NONE8=$FF;
@@ -250,6 +251,8 @@ var SourceText : ^tSourceText;
     SaveFile: file;
     SymbolsFile: text;
     SizeAccu, SizeIndex: boolean;
+
+    EndOfAssembly: boolean;
 
 { neue Funktionen/Prozeduren fr Pascal }
 function UpCaseStr(S: string): string;
@@ -673,6 +676,12 @@ begin
   if (S[1]='>') and (S<>'') then { High-Byte }
   begin
     number:=GetNumber(Copy(S,2,255)) shr 8;
+    S:='';
+  end;
+  if (S[1]='(') and (S<>'') then { Ausdruck in Klammern }
+  begin
+    if S[Length(S)]<>')' then Errorstop('Brackets error!');
+    number:=GetNumber(Copy(S,2,Length(S)-2));
     S:='';
   end;
   if (S<>'') and (S[1]>='0') and (S[1]<='9') then { dezimale Konstante }
@@ -2460,10 +2469,10 @@ begin
       until FALSE;
       end;
     end;
-    if Pseudo='EN' then { unerlaubtes Makro-Ende }
-    begin
+(*    if Pseudo='EN' then { bedeutet hier: Ende des Quelltexts }
+    begin               { aber auch: Ende eines Makros (siehe dort!) }
       Errorstop('No macro to end!');
-    end;
+    end; MIST! *)
     if Pseudo='LO' then
     begin
       if Operand='' then Errorstop('Filename required');
@@ -2498,7 +2507,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.26d   03-14-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.26e   03-14-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2669,6 +2678,8 @@ begin
       begin
         GotoXY(6,WhereY-1); Writeln(Right4(currentline));
       end;
+      if UpCaseStr(curL)='.EN' then Break; { Ende der Assemblierung, alles
+                                             nach .en berlesen }
       a:=Assemble(curL);
       if (Length(a)>0) and (not basedefined) then Errorstop('Base missing!');
       if Pass=2 then
