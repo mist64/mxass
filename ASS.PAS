@@ -86,7 +86,9 @@
            00:23:34:89 ...
  17.08.97  00:40:31:78 WDC: GEQU, DS, ANOP, 65816 ON/OFF, START, END, LONGA/I
  18.08.97  00:19:07:08 Table Assembler: .EQU, .DB, .DW, .ORG
- 19.03.98  00:12:05:65 Bugfix: Punkte in/L„nge von Datei/Verzeichnisnamen
+ 05.03.98  00:12:05:65 Bugfix: Punkte in/L„nge von Datei/Verzeichnisnamen
+ 06.03.98  00:06:03:82 .start
+           00:07:37:75 Giga-Ass: .eq, .te, .ds
 }
 
 {$G+}
@@ -204,6 +206,7 @@ var SourceText : ^tSourceText;
     Cpu: byte;
     CpuIllegal: boolean;
     opaddress, oldopaddress: word;
+    startjumpaddress: word;
     currentline: word;
     ParameterFile: string;
     Filename: string;
@@ -903,7 +906,7 @@ DCW:
         until FALSE;
       end;
     end;
-    if Statement='DS' then
+    if Statement='DS' then { define storage, wie .br }
     begin
       PseudoOK:=TRUE;
       unknown:=FALSE;
@@ -2291,7 +2294,15 @@ begin
       opaddress:=number;
       basedefined:=TRUE;
     end;
-    if Pseudo='BR' then
+    if Pseudo='ST' then { .start }
+    begin
+      PseudoOK:=TRUE;
+      unknown:=FALSE;
+      number:=GetNumber(Operand);
+      startjumpaddress:=number;
+      Transfer:=Transfer or 128; { bei Transfer Start einschalten }
+    end;
+    if (Pseudo='BR') or (Pseudo='DS') then { .br oder .ds (define storage) }
     begin
       PseudoOK:=TRUE;
       ins:=Pos(',',Operand);
@@ -2333,7 +2344,7 @@ begin
         insold:=insold+ins;
       until FALSE;
     end;
-    if Pseudo='LA' then
+    if (Pseudo='LA') or (Pseudo='EQ') then { .la oder .equate }
     begin
       PseudoOK:=TRUE;
       ins:=Pos('=',Operand);
@@ -2343,7 +2354,7 @@ begin
       if unknown=FALSE then SetLabel(Trim(UpCaseStr(Copy(Operand,1,ins-1))), number);
       { wenn Value nicht bekannt, Zuweisung ignorieren }
     end;
-    if Pseudo='TX' then
+    if (Pseudo='TX') or (Pseudo='TE') then { .tx oder .text }
     begin
       PseudoOK:=TRUE;
       if Operand[1]<>QUOTE then ErrorStop('Quote expected!');
@@ -2462,7 +2473,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.26    03-05-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.26b   03-06-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2726,7 +2737,7 @@ begin
     Writeln('OK.');
   end;
 
-  if Transfer>0 then
+  if (Transfer and 127)>0 then
   begin
     Write('Press any key to start transfer...'); repeat until KeyPressed; Writeln;
     Write('Transfer...');
@@ -2763,9 +2774,10 @@ begin
     if (Transfer and 128)>0 then
     begin
       Write('Start...');
+      if startjumpaddress=0 then startjumpaddress:=startaddress;
       case Transfer and 127 of
-      1: { 64NET } SYS(Startaddress,0,0,0);
-      2: { PC64 } PC64SYS(Startaddress,0,0,0);
+      1: { 64NET } SYS(startjumpaddress,0,0,0);
+      2: { PC64 } PC64SYS(startjumpaddress,0,0,0);
       else begin Writeln('Sorry, start not yet implemented!'); Halt; end;
       end;
     end;
