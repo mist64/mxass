@@ -65,6 +65,13 @@
  21.05.97  00:21:31:26 Opcodes-Datei als EXE-Overlay
            00:20:42:57 LOs auch im Ass-Verz.
  22.05.97  00:19:24:50 Labels in Zeile mit Mnemo; Line/sec
+           00:27:59:24 Eintippen der Z80-Opcodes
+           00:24:52:95 Z80-Assembler
+ 28.05.97  01:22:37:35 ...
+           00:35:56:84 ...
+ 29.05.97  01:07:35:38 ...
+           01:10:07:47 ...
+           00:08:50:24 Z80-Bugfix
 }
 
 {$G+}
@@ -74,6 +81,7 @@ uses Crt, Dos;
 
 const MNEMOS=108;       { Anzahl der bekannten Mnemos }
       ADDMODES=23;
+      Z80MNEMOS=78;
       MAXNAMELENGTH=25;
       SOURCEMEM=65535; { Bytes fÅr Quelltext }
       MAXLINES=3000;
@@ -82,7 +90,7 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
       MAXMACROS=10;     { Maximale Anzahl der Makros }
       MAXMACROLENGTH=512;{ Bytes fÅr Makroquelltext }
       MAXMACPARA=10;    { Maximale Anzahl von Makroparametern }
-      MAXOCODE=17000;   { Maximale Grî·e des ObjectCodes }
+      MAXOCODE=16000;   { Maximale Grî·e des ObjectCodes }
 
       QUOTE=#34;
       CR=#13+#10;
@@ -111,6 +119,24 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
       BYTE3MODES=BIT16MODES+#21+#22;
       BYTE4MODES=BIT24MODES;
 
+      Z80REGS=8;
+      Z80REG: array[0..Z80REGS-1] of string[4]=('B','C','D','E','H','L','L','A');
+      { zweites L ist ein Dummy, wird nie Åbereinstimmen }
+      Z80REG8S=8;
+      Z80REG8: array[0..Z80REG8S-1] of string[4]=('B','C','D','E','H','L','(HL)','A');
+      Z80REG16S=4;
+      Z80REG16: array[0..Z80REG16S-1] of string[2]=('BC','DE','HL','SP');
+      Z80REG162S=4;
+      Z80REG162: array[0..Z80REG162S-1] of string[2]=('BC','DE','HL','AF');
+      Z80REG816S=12;
+      Z80REG816: array[0..Z80REG816S-1] of string[4]=('B','BC','C','D','DE','E','H','HL','L','(HL)','SP','A');
+      Z80CONDS=8;
+      Z80COND: array[0..Z80CONDS-1] of string[2]=('NZ','Z','NC','C','PO','PE','P','M');
+      Z80REGCONV1: array[0..Z80REG8S-1] of byte=(0,2,3,5,6,8,9,$B);
+      Z80REGCONV2: array[0..Z80REG162S-1] of byte=(1,4,7,$FF);
+
+      Z80OPCODECONV: array[0..Z80REG816S-1] of byte=($0,$6,$8,$10,$16,$18,$20,$26,$28,$30,$36,$38);
+
       PORT=$378; { LPT1 }
 
       OPCODESFILENAME='OPCODES.A18';
@@ -125,6 +151,11 @@ var SourceText : ^tSourceText;
     belongstoFile: array[0..MAXLINES] of word;
     Mnemo: array[1..MNEMOS] of string[3];
     Opcode: array[1..MNEMOS,0..ADDMODES-1] of word;
+
+    Z80Mnemo: array[1..Z80MNEMOS] of string[4];
+    Z80Addmode: array[1..Z80MNEMOS] of byte;
+    Z80Opcode: array[1..Z80MNEMOS] of word;
+
     RegisterInvolved: array[1..MNEMOS] of byte;
     xLabel: array[0..MAXLABELS] of string[MAXNAMELENGTH];
     Value: array[0..MAXLABELS] of word;
@@ -338,7 +369,7 @@ begin
       begin
         Line2:=Copy(Line,ins+1,255);
         Line[0]:=Chr(ins-1);
-        if Line[Length(Line)]<>':' then Line:=Line+':';
+        if Line[Length(Line)]<>COLON then Line:=Line+COLON;
         NextLineInBuffer:=TRUE;
         { -> Line wird abgelegt, Line2 beim nÑchsten Durchlauf }
       end;
@@ -1481,6 +1512,504 @@ begin
   PC64SendByte(A);
 end;
 
+function AssembleZ80(Line: string): string;
+label AddmodeOK;
+var ins: byte;
+    Mnemo, UMnemo: string;
+    Operands, UOperands, Operands2: string;
+    Op1, Op2, UOp1, UOp2: string;
+    ArrayScan: byte;
+    MnemoNum: byte;
+    a: string;
+    Op: word;
+    i, po: byte;
+    Addmode: byte;
+    reg, reg8, reg16, reg162, reg816, cond: byte;
+    reg81, reg82: byte;
+    number: word;
+    branch: integer;
+    branch2: byte;
+begin
+{ *** kopiert aus 65xx-Assembler *** }
+  if Line[Length(Line)]=COLON then { Label definieren }
+  begin
+    SetLabel(UpCaseStr(Copy(Line,1,Length(Line)-1)),opaddress);
+    AssembleZ80:=''; Exit;
+  end;
+{ *** kopiert aus 65xx-Assembler *** }
+
+  ins:=FindSeparator(Line);
+  if ins>0 then
+  begin
+    Mnemo:=Copy(Line,1,ins-1);
+    Operands:=Trim(Copy(Line,ins,255));
+  end else begin
+    Mnemo:=Line;
+    Operands:='';
+  end;
+{
+ *** 0 *** ohne Argument                                             OK!
+ *** 1 *** A, B/C/D/E/H/L/(HL)/A;  Byte + regA                       OK!
+ *** 2 *** A, n                                                      OK!
+ *** 3 *** HL, BC/DE/HL/SP;  letztes Byte + regC                     OK!
+ *** 4 *** B/C/D/E/H/L/(HL)/A;  letztes Byte + regA                  OK?
+ *** 5 *** n                                                         -
+ *** 6 *** B/BC/C/D/DE/E/H/HL/L/(HL)/SP/A;  Byte + regD              OK!
+ *** 7 *** x, B/C/D/E/H/L/(HL)/A;  letztes Byte + (x*8) + regA       OK!
+ *** 8 *** nn                                                        OK?
+ *** 9 *** nn; Umsetzung nach relativ!                               -
+ *** A *** cond, nn;  Byte + cond                                    OK!
+ *** B *** cond, nn;  Byte + cond; Umsetzung nach relativ!           -
+ *** C *** cond;  Byte + cond                                        OK!
+ *** D *** B/C/D/E/H/L/A,(c);  letztes Byte + regE                   OK!
+ *** E *** (c),B/C/D/E/H/L/A;  letztes Byte + regE                   OK!
+ *** F *** BC/DE/HL/AF;  Byte + regF                                 OK?
+}
+  { Besondere Mnemos }
+  UMnemo:=UpCaseStr(Mnemo); UOperands:=UpCaseStr(Operands);
+  if UMnemo='LD' then { ld }
+  begin
+    i:=Pos(',',Operands);
+    if i=0 then ErrorStop('Syntax: LD reg/mem,reg/mem');
+    Op1:=Trim(Copy(Operands,1,i-1));
+    Op2:=Trim(Copy(Operands,i+1,255));
+    UOp1:=UpCaseStr(Op1); UOp2:=UpCaseStr(Op2);
+    reg81:=$FF;
+    for i:=0 to Z80REG8s-1 do
+    begin
+     if UOp1=Z80Reg8[i] then begin reg81:=i; Break; end;
+    end;
+    reg82:=$FF;
+    for i:=0 to Z80REG8s-1 do
+    begin
+     if UOp2=Z80Reg8[i] then begin reg82:=i; Break; end;
+    end;
+    if (reg81<>$FF) and (reg82<>$FF) then { reg8,reg8 }
+    begin
+      if (reg81=6) and (reg82=6) then Errorstop('Invalid combination: LD (HL),(HL)');
+      AssembleZ80:=Chr($40+reg81*8+reg82); Exit;
+    end;
+    if reg81=7 then { a,... }
+    begin
+      if UOp2='(BC)' then begin AssembleZ80:=Chr($0A); Exit; end;
+      if UOp2='(DE)' then begin AssembleZ80:=Chr($1A); Exit; end;
+      if UOp2='I' then begin AssembleZ80:=Chr($ED)+Chr($57); Exit; end;
+      if UOp2='R' then begin AssembleZ80:=Chr($ED)+Chr($5F); Exit; end;
+      if (UOp2[1]='(') and (UOp2[Length(UOp2)]=')') then
+      begin
+        number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
+        if Pass=1 then
+          AssembleZ80:='   '
+        else
+          AssembleZ80:=Chr($3A)+Chr(lo(number))+Chr(hi(number));
+        Exit;
+      end;
+    end;
+    if reg82=7 then { ...,a }
+    begin
+      if UOp1='(BC)' then begin AssembleZ80:=Chr($02); Exit; end;
+      if UOp1='(DE)' then begin AssembleZ80:=Chr($12); Exit; end;
+      if UOp1='I' then begin AssembleZ80:=Chr($ED)+Chr($47); Exit; end;
+      if UOp1='R' then begin AssembleZ80:=Chr($ED)+Chr($4F); Exit; end;
+      if (UOp1[1]='(') and (UOp1[Length(UOp1)]=')') then
+      begin
+        number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
+        if Pass=1 then
+          AssembleZ80:='   '
+        else
+          AssembleZ80:=Chr($32)+Chr(lo(number))+Chr(hi(number));
+        Exit;
+      end;
+    end;
+    if (UOp1[1]='(') and (UOp1[Length(UOp1)]=')') then
+    begin
+      if UOp2='BC' then begin number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
+                              AssembleZ80:=Chr($ED)+Chr($43)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+      if UOp2='DE' then begin number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
+                              AssembleZ80:=Chr($ED)+Chr($53)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+      if UOp2='HL' then begin number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
+                              AssembleZ80:=Chr($22)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+      if UOp2='SP' then begin number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
+                              AssembleZ80:=Chr($ED)+Chr($73)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+    end;
+    if (UOp2[1]='(') and (UOp2[Length(UOp2)]=')') then
+    begin
+      if UOp1='BC' then begin number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
+                              AssembleZ80:=Chr($ED)+Chr($4B)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+      if UOp1='DE' then begin number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
+                              AssembleZ80:=Chr($ED)+Chr($5B)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+      if UOp1='HL' then begin number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
+                              AssembleZ80:=Chr($2A)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+      if UOp1='SP' then begin number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
+                              AssembleZ80:=Chr($ED)+Chr($7B)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+    end;
+    number:=Getnumber(Op2);
+    if reg81<>$FF then
+    begin
+      if (Pass=2) and (number>255) then Errorstop('8 Bit!');
+      AssembleZ80:=Chr($06+reg81*8)+Chr(number);
+      Exit;
+    end;
+    if UOp1='BC' then begin AssembleZ80:=Chr($01)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+    if UOp1='DE' then begin AssembleZ80:=Chr($11)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+    if UOp1='HL' then begin AssembleZ80:=Chr($21)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+    if UOp1='SP' then begin AssembleZ80:=Chr($31)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+  end;
+  if (UMnemo='JP') and (UOperands='(HL)') then begin AssembleZ80:=Chr($E9); Exit; end;
+  if UMnemo='IM' then
+  begin
+    if Operands='0' then begin AssembleZ80:=Chr($ED)+Chr($46); Exit; end;
+    if Operands='1' then begin AssembleZ80:=Chr($ED)+Chr($56); Exit; end;
+    if Operands='2' then begin AssembleZ80:=Chr($ED)+Chr($5E); Exit; end;
+    Errorstop('Syntax: IM 0/1/2');
+  end;
+  if UMnemo='EX' then
+  begin
+    i:=Pos(',',Operands);
+    if i=0 then ErrorStop('Syntax: EX op1,op2');
+    Op1:=Trim(Copy(Operands,1,i-1));
+    Op2:=Trim(Copy(Operands,i+1,255));
+    UOp1:=UpCaseStr(Op1); UOp2:=UpCaseStr(Op2);
+    if (UOp1='(SP)') and (UOp2='HL') then begin AssembleZ80:=Chr($E3); Exit; end;
+    if (UOp1='AF') and (UOp2='AF''') then begin AssembleZ80:=Chr($08); Exit; end;
+    if (UOp1='DE') and (UOp2='HL') then begin AssembleZ80:=Chr($EB); Exit; end;
+  end;
+  if UMnemo='RST' then
+  begin
+    number:=Getnumber(Operands);
+    if (number and 7>0) or (number>$38) then Errorstop('Syntax: RST 0/8/10/18/20/28/30/38');
+    AssembleZ80:=Chr($C7+number);
+    Exit;
+  end;
+  if UMnemo='IN' then
+  begin
+    i:=Pos(',',Operands);
+    if i<>0 then
+    begin
+      Op1:=Trim(Copy(Operands,1,i-1));
+      Op2:=Trim(Copy(Operands,i+1,255));
+      UOp1:=UpCaseStr(Op1); UOp2:=UpCaseStr(Op2);
+      if (UOp1='A') and (UOp2[1]='(') and (UOp2[Length(UOp2)]=')') and (UOp2<>'(C)') then
+      begin
+        number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
+        if number>255 then Errorstop('8 Bit!');
+        AssembleZ80:=Chr($DB)+Chr(number);
+        Exit;
+      end;
+    end;
+  end;
+  if UMnemo='OUT' then
+  begin
+    i:=Pos(',',Operands);
+    if i<>0 then
+    begin
+      Op1:=Trim(Copy(Operands,1,i-1));
+      Op2:=Trim(Copy(Operands,i+1,255));
+      UOp1:=UpCaseStr(Op1); UOp2:=UpCaseStr(Op2);
+      if (UOp2='A') and (UOp1[1]='(') and (UOp1[Length(UOp1)]=')') and (UOp1<>'(C)') then
+      begin
+        number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
+        if number>255 then Errorstop('8 Bit!');
+        AssembleZ80:=Chr($D3)+Chr(number);
+        Exit;
+      end;
+    end;
+  end;
+
+  { In Tabellen erfa·te Mnemos }
+  if Operands='' then { Addmode 0 }
+  begin
+    Addmode:=0;
+  end else begin { Parameter vorhanden }
+    if UpCaseStr(Copy(Operands,Length(Operands)-2,3))='(C)' then { Addmode D }
+    begin
+      Operands:=Trim(Copy(Operands,1,Length(Operands)-3));
+      if (Operands[Length(Operands)]<>',') then ErrorStop('Syntax: B/C/D/E/H/L/A,(C)');
+      Operands:=UpCaseStr(Trim(Copy(Operands,1,Length(Operands)-1)));
+      reg:=$FF;
+      for i:=0 to Z80REGs-1 do
+      begin
+        if Operands=Z80Reg[i] then begin reg:=i; Break; end;
+      end;
+      if reg=$FF then ErrorStop('Syntax: B/C/D/E/H/L/A,(C)');
+      Addmode:=$D;
+      goto AddmodeOK
+    end;
+    if UpCaseStr(Copy(Operands,1,3))='(C)' then { Addmode E }
+    begin
+      Operands:=Trim(Copy(Operands,4,255));
+      if (Operands[1]<>',') or (Length(Operands)=0) then ErrorStop('Syntax: (C),B/C/D/E/H/L/A');
+      Operands:=UpCaseStr(Trim(Copy(Operands,2,255)));
+      reg:=$FF;
+      for i:=0 to Z80REGs-1 do
+      begin
+        if Operands=Z80Reg[i] then begin reg:=i; Break; end;
+      end;
+      if reg=$FF then ErrorStop('Syntax: B/C/D/E/H/L/A,(C)');
+      Addmode:=$E;
+      goto AddmodeOK
+    end;
+    if UpCaseStr(Copy(Operands,1,2))='A,' then { Addmode 1 oder 2 }
+    begin
+      Operands:=UpCaseStr(Trim(Copy(Operands,3,255)));
+      reg8:=$FF;
+      for i:=0 to Z80REG8s-1 do
+      begin
+        if Operands=Z80Reg8[i] then begin reg8:=i; Break; end;
+      end;
+      if reg8<>$FF then
+      begin { Addmode 1 }
+        Addmode:=1;
+      end else begin
+        Addmode:=2;
+        number:=GetNumber(Operands);
+      end;
+      goto AddmodeOK
+    end;
+    if UpCaseStr(Copy(Operands,1,3))='HL,' then { Addmode 3 }
+    begin
+      Operands:=UpCaseStr(Trim(Copy(Operands,4,255)));
+      reg16:=$FF;
+      for i:=0 to Z80REG16s-1 do
+      begin
+        if Operands=Z80Reg16[i] then begin reg16:=i; Break; end;
+      end;
+      if reg16=$FF then ErrorStop('Syntax: HL, BC/DE/HL/SP');
+      Addmode:=3;
+      goto AddmodeOK
+    end;
+    if (Operands[1]>='0') and (Operands[1]<='9') and (Operands[2]=',') and (Length(Operands)>1) then
+    begin { Addmode 7 }
+      Operands:=UpCaseStr(Trim(Copy(Operands,3,255)));
+      reg8:=$FF;
+      for i:=0 to Z80REG8s-1 do
+      begin
+        if Operands=Z80Reg8[i] then begin reg8:=i; Break; end;
+      end;
+      if reg8<>$FF then
+      begin
+        Addmode:=7;
+        number:=Ord(Operands[1])-48;
+      end else begin
+        Errorstop('Syntax: ?, B/C/D/E/H/L/(HL)/A');
+      end;
+      goto AddmodeOK
+    end;
+    { Auf Addmode 4 testen }
+    Operands2:=UpCaseStr(Operands);
+    reg8:=$FF;
+    for i:=0 to Z80REG8s-1 do
+    begin
+      if Operands2=Z80Reg8[i] then begin reg8:=i; Break; end;
+    end;
+    if reg8<>$FF then
+    begin { Addmode 4 }
+      Addmode:=4;
+      goto AddmodeOK;
+    end;
+    { Auf Addmode F testen }
+    reg162:=$FF;
+    for i:=0 to Z80REG162s-1 do
+    begin
+      if Operands2=Z80Reg162[i] then begin reg162:=i; Break; end;
+    end;
+    if reg162<>$FF then
+    begin { Addmode F }
+      Addmode:=$F;
+      goto AddmodeOK;
+    end;
+    { Auf Addmode 6 testen }
+    reg816:=$FF;
+    for i:=0 to Z80REG816s-1 do
+    begin
+      if Operands2=Z80Reg816[i] then begin reg816:=i; Break; end;
+    end;
+    if reg816<>$FF then
+    begin { Addmode 6 }
+      Addmode:=6;
+      goto AddmodeOK;
+    end;
+    { Auf Addmode A,B,C (cond) testen }
+    po:=Pos(',',Operands);
+    if (po>0) or (Length(Operands)<=2) then
+    begin
+      if po=0 then po:=255;
+      Operands2:=UpCaseStr(Trim(Copy(Operands,1,po-1)));
+      cond:=$FF;
+      for i:=0 to Z80CONDs-1 do
+      begin
+        if Operands2=Z80COND[i] then begin cond:=i; Break; end;
+      end;
+      if cond<>$FF then
+      begin
+        if po=255 then
+        begin
+          Addmode:=$C
+        end else begin
+          number:=Getnumber(Trim(Copy(Operands,po+1,255)));
+          Addmode:=$A;
+        end;
+        goto AddmodeOK;
+      end;
+    end;
+    { nichts gefunden, dann absolut, Addmode 8 }
+    Addmode:=8;
+    number:=Getnumber(Operands);
+  end;
+AddmodeOK:
+{ Opcode suchen }
+  MnemoNum:=0;
+  for ArrayScan:=1 to Z80MNEMOS do
+  begin
+    if (Z80Mnemo[ArrayScan]=Mnemo) and (Z80Addmode[ArrayScan]=Addmode) then begin MnemoNum:=ArrayScan; Break; end;
+  end;
+  if MnemoNum=0 then
+  begin
+    if Addmode=8 then begin Addmode:=9; goto AddmodeOK; end;
+    if Addmode=9 then begin Addmode:=5; goto AddmodeOK; end;
+    if Addmode=$A then begin Addmode:=$B; goto AddmodeOK; end;
+    if Addmode=4 then
+    begin
+      Addmode:=6;
+      { Konvertierung der Registernummer von REG8 nach REG816! }
+      reg816:=Z80REGCONV1[reg8];
+      goto AddmodeOK;
+    end;
+    if Addmode=$F then
+    begin
+      Addmode:=6;
+      { Konvertierung der Registernummer von REG162 nach REG816! }
+      reg816:=Z80REGCONV2[reg162];
+      if reg816<>$FF then goto AddmodeOK; { sonst schlug Reg.-Konv. fehl }
+    end;
+    Errorstop('Unknown Mnemonic/Addressing Mode! (Z80)');
+  end;
+  Op:=Z80Opcode[MnemoNum];
+  if Op>255 then a:=Chr(Op and 255)+Chr(Op shr 8) else a:=Chr(Op);
+  case Addmode of
+  1:
+    begin
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+reg8);
+    end;
+  2:
+    begin
+      if Pass=2 then
+      begin
+        if number>255 then Errorstop('8 Bit!');
+        a:=a+Chr(number);
+      end else begin
+        a:=a+' ';
+      end;
+    end;
+  3:
+    begin
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+reg16*$10);
+    end;
+  4:
+    begin
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+reg8);
+    end;
+  5:
+    begin
+      if Pass=2 then
+      begin
+        if number>255 then Errorstop('8 Bit!');
+        a:=a+Chr(number);
+      end else begin
+        a:=a+' ';
+      end;
+    end;
+  6:
+    begin
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+Z80OPCODECONV[reg816]);
+    end;
+  7:
+    begin
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+number*8+reg8);
+    end;
+  8:
+    begin
+      if Pass=2 then
+      begin
+        a:=a+Chr(number and 255)+Chr(number shr 8);
+      end else begin
+        a:=a+'  ';
+      end;
+    end;
+  9:
+    begin
+      if Pass=2 then
+      begin
+        branch:=number-opaddress-2;
+        if (branch<-128) or (branch>127) then Errorstop('Label out of range!');
+        branch2:=branch;
+        a:=a+Chr(branch2);
+      end else begin
+        a:=a+' ';
+      end;
+    end;
+  $A:
+    begin
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+cond*8);
+      if Pass=2 then
+      begin
+        a:=a+Chr(number and 255)+Chr(number shr 8);
+      end else begin
+        a:=a+'  ';
+      end;
+    end;
+  $B:
+    begin
+      if (UMnemo='JR') and (cond>3) then Errorstop('Invalid condition for JR');
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+cond*8);
+      if Pass=2 then
+      begin
+        branch:=number-opaddress-2;
+        if (branch<-128) or (branch>127) then Errorstop('Label out of range!');
+        branch2:=branch;
+        a:=a+Chr(branch2);
+      end else begin
+        a:=a+' ';
+      end;
+    end;
+  $C:
+    begin
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+cond*8);
+    end;
+  $D:
+    begin
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+reg*8);
+    end;
+  $E:
+    begin
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+reg*8);
+    end;
+  $F:
+    begin
+      a[Length(a)]:=Chr(Ord(a[Length(a)])+reg162*$10);
+    end;
+  end;
+  AssembleZ80:=a;
+{
+ *** 0 *** ohne Argument                                             OK!
+ *** 1 *** A, B/C/D/E/H/L/(HL)/A;  Byte + regA                       OK!
+ *** 2 *** A, n                                                      OK!
+ *** 3 *** HL, BC/DE/HL/SP;  letztes Byte + regC                     OK!
+ *** 4 *** B/C/D/E/H/L/(HL)/A;  letztes Byte + regA                  OK?
+ *** 5 *** n                                                         -
+ *** 6 *** B/BC/C/D/DE/E/H/HL/L/(HL)/SP/A;  Byte + regD              OK!
+ *** 7 *** x, B/C/D/E/H/L/(HL)/A;  letztes Byte + (x*8) + regA       OK!
+ *** 8 *** nn                                                        OK?
+ *** 9 *** nn; Umsetzung nach relativ!                               -
+ *** A *** cond, nn;  Byte + cond                                    OK!
+ *** B *** cond, nn;  Byte + cond; Umsetzung nach relativ!           -
+ *** C *** cond;  Byte + cond                                        OK!
+ *** D *** B/C/D/E/H/L/A,(c);  letztes Byte + regE                   OK!
+ *** E *** (c),B/C/D/E/H/L/A;  letztes Byte + regE                   OK!
+ *** F *** BC/DE/HL/AF;  Byte + regF                                 OK?
+}
+end;
+
 
 { Main }
 
@@ -1578,6 +2107,19 @@ begin
     end;
     Inc(NumberOfMnemos);
   until Eof(OpcodesFile);
+  Close(OpcodesFile);
+
+  { Z80-Opcodes einlesen }
+  Assign(OpcodesFile,'OPZ80.A23'); Reset(OpcodesFile,1);
+  for i:=1 to Z80MNEMOS do
+  begin
+    BlockRead(OpcodesFile,Ptr(Seg(Z80Mnemo[i]),Ofs(Z80Mnemo[i])+1)^,4);
+    BlockRead(OpcodesFile,Z80Addmode[i],1);
+    BlockRead(OpcodesFile,Z80Opcode[i],2);
+    Z80Mnemo[i][0]:=#4;
+    while Z80Mnemo[i][Length(Z80Mnemo[i])]=' ' do Z80Mnemo[i][0]:=Chr(Ord(Z80Mnemo[i][0])-1)
+{    if Z80Mnemo[i][4]=' ' then Z80Mnemo[i][0]:=#3 else Z80Mnemo[i][0]:=#4;}
+  end;
   Close(OpcodesFile);
 
 
@@ -1812,10 +2354,15 @@ begin
           if Pass=2 then Loads:=Loads+Operand+#0;
           PseudoOK:=TRUE;
         end;
+        if Pseudo='Z8' then { .Z80 }
+        begin
+          CPU:=80;
+          PseudoOK:=TRUE;
+        end;
         if not PseudoOK then Errorstop('Unknown pseudo opcode!');
         Continue;
       end;
-      a:=Assemble(curL);
+      if CPU=80 then a:=AssembleZ80(curL) else a:=Assemble(curL);
 codeok:
       if not basedefined then Errorstop('Base missing!');
       if Pass=2 then
@@ -1833,7 +2380,7 @@ codeok:
         for ShowIndex:=1 to 20 do Write(' ');
         GotoXY(20,WhereY);
         Writeln(CurL); Writeln;
-        repeat until KeyPressed;
+        {repeat until KeyPressed;}
         oldopaddress:=opaddress
       end;
     until FALSE;
@@ -1978,6 +2525,7 @@ end.
  - Leerzeichen bei .LA                                   CHECKY080397/210597
  - Suchen nach .LO-Dateien und .A18 im ASS-Verzeichnis   CHECKY080397/210597
  - Label und Mnemo in einer Zeile                              220597/220597
+ - Z80-Assembler                                               191196/290597
 
 ****************************************************************************
  geplante Erweiterungen:
@@ -1997,7 +2545,6 @@ end.
  - End-of-Transmission! Kein Absturz des C64-Wedge-Programms          180896
  - X-Debugger                                                         180896
  - Pseudo-Statements mÅssen auch in Makros erlaubt sein!              191196
- - Z80-Assembler                                                      191196
  - Spaces bei Rechnungen rausfiltern                                  191196
  - Synchronisationsfehler erkennen                                    260197
  - Abbruch bei Transfer                                         CHECKY080397
@@ -2007,5 +2554,6 @@ end.
  - GEOS!                                                              210597
  - Linken von Libraries/Emulatoren                                    210597
  - Transfer von 0 Bytes abfangen!                                     210597
+ - Bedingtes Assemblieren mit .if                                     280597
+ - Makros in Z80-Code                                                 300597
 *)
-
