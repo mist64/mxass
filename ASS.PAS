@@ -108,6 +108,8 @@
  21.05.98  00:37:30:85 Timeout bei PC64 šbertragung
            00:18:00:88 Timeout bei 64NET šbertragung (untested)
            00:01:59:60 Bugfix
+ 23.05.98  00:03:10:36 -KEY, -KEY-
+           00:06:31:37 "Trying to establish connection"
 }
 
 {$G+}
@@ -276,6 +278,8 @@ var SourceText : ^tSourceText;
     IgnoreNextEnd: boolean;
 
     TransErr: boolean;
+
+    WaitForKey: boolean;
 
 { neue Funktionen/Prozeduren fr Pascal }
 function UpCaseStr(S: string): string;
@@ -2686,8 +2690,11 @@ end;
 function DoTransfer: boolean;
 begin
   DoTransfer:=TRUE;
-  Write('Press any key to start transfer...'); repeat until KeyPressed; Writeln;
-  Write('Transfer...');
+  if WaitForKey then begin
+    Write('Press any key to start transfer...');
+    repeat until KeyPressed;
+    Writeln;
+  end;
   case Transfer and 127 of
   1: { 64NET } if Transfer64NET(Startaddress, ocode, ocodeIndex) then Exit;
   2: { PC64 }  if PC64POKELC64(Startaddress, ocode, ocodeIndex) then Exit;
@@ -2721,7 +2728,7 @@ begin
   end;
   if (Transfer and 128)>0 then
   begin
-    Write('Start...');
+    Writeln('OK.'); Write('Start...');
     if startjumpaddress=0 then startjumpaddress:=startaddress;
     case Transfer and 127 of
     1: { 64NET } if SYS(startjumpaddress,0,0,0) then Exit;
@@ -2760,7 +2767,7 @@ begin
   until i=0;
 
 { Kommandozeile parsen }
-  ParameterFile:=''; Transfer:=0; SaveAs:=0; Symbols:=FALSE;
+  ParameterFile:=''; Transfer:=0; SaveAs:=0; Symbols:=FALSE; WaitForKey:=FALSE;
   for i:=1 to ParamCount do
   begin
     if ParamStr(i)='' then Continue;
@@ -2784,6 +2791,8 @@ begin
       if SwitchParameter='SHOW-' then begin Show:=FALSE; SwitchOK:=TRUE; end;
       if SwitchParameter='SYM' then begin Symbols:=TRUE; SwitchOK:=TRUE; end;
       if SwitchParameter='SYM-' then begin Symbols:=FALSE; SwitchOK:=TRUE; end;
+      if SwitchParameter='KEY' then begin WaitForKey:=TRUE; SwitchOK:=TRUE; end;
+      if SwitchParameter='KEY-' then begin WaitForKey:=FALSE; SwitchOK:=TRUE; end;
       if not SwitchOK then
       begin
         Writeln('Unknown switch -',SwitchParameter,'!');
@@ -3017,7 +3026,17 @@ begin
 
   if Transfer>0 then
   begin
-    if DoTransfer then Writeln('Failed!') else Writeln('OK.');
+    Write('Trying to establish connection');
+    for i:=1 to 40 do
+    begin
+      Write('.');
+      if DoTransfer=FALSE then
+      begin
+        i:=0;
+        Break;
+      end;
+    end;
+    if i>0 then Writeln('Failed!') else Writeln('OK.');
   end;
 
   Writeln;
@@ -3101,4 +3120,12 @@ end.
  - Mnemos an Position 1                                          SOREX210598
  - Reihenfolge Code/Daten beim Transfer „ndern!                  SOREX210598
  - Offset<=Offset kann gel”st werden                             SOREX210598
+>let it print the real line# instead of the physical opcode line#
+>
+>it gives error on lda$xxxx,x ldaxx,x type opcodes although that
+>ldaxxxx and ldaxx are accepted.
+>
+>      main=$xxxx   doesn't work
+>main=$xxxx   doesn't work either
+>main= $xxxx   works
 *)
