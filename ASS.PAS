@@ -96,8 +96,9 @@
            00:22:04:37 * als aktuelle Adresse, .ds > 255, .ds=0-Bugfix
            00:10:03:25 *-Bugfix
  17.03.98  00:15:46:94 Base-Definition Åber *=$C000 (Turbo Ass)
-           00:15:01:20 = ohne Space davor
+           00:15:01:20 Bugifx: = ohne Space davor
            00:05:20:05 Bugfix bei Spaces in RechenausdrÅcken
+           00:13:30:67 .comment - .en; .if wert=wert - .en
 }
 
 {$G+}
@@ -232,7 +233,7 @@ var SourceText : ^tSourceText;
     lines, reallines: word;
     basedefined: boolean;
     Pseudo, Operand: string;
-    number: numbertype;
+    number, number2: numbertype;
     startaddress: word;
     times: word;
     insold: word;
@@ -263,7 +264,7 @@ var SourceText : ^tSourceText;
     SymbolsFile: text;
     SizeAccu, SizeIndex: boolean;
 
-    EndOfAssembly: boolean;
+    IgnoreNextEnd: boolean;
 
 { neue Funktionen/Prozeduren fÅr Pascal }
 function UpCaseStr(S: string): string;
@@ -2526,6 +2527,29 @@ begin
       until FALSE;
       end;
     end;
+    if Pseudo='IF' then { .if, bedingte Assemblierung }
+    begin
+      PseudoOK:=TRUE;
+      ins:=Pos('=',Operand);
+      number:=GetNumber(Copy(Operand,1,ins-1));
+      number2:=GetNumber(Copy(Operand,ins+1,255));
+      if number<>number2 then begin
+        repeat
+          CurL:=ReadLine;
+          if CurL='' then Errorstop('End if expected!');
+        until UpCaseStr(Copy(CurL,1,3))='.EN';
+      end else begin
+        IgnoreNextEnd:=True;
+      end;
+    end;
+    if Pseudo='CO' then { .comment, mehrzeiliger Kommentar }
+    begin
+      PseudoOK:=TRUE;
+      repeat
+        CurL:=ReadLine;
+        if CurL='' then Errorstop('End if expected!');
+      until UpCaseStr(Copy(CurL,1,3))='.EN';
+    end;
     if Pseudo='LO' then
     begin
       if Operand='' then Errorstop('Filename required');
@@ -2719,6 +2743,7 @@ begin
   TrimSourceText(ParameterFile);
   lines:=i; reallines:=reallinenumber[i-1];
   SourceEnd:=SourceIndex;
+  IgnoreNextEnd:=False;
 
   StartTime:=Time;
   Labels:=0;
@@ -2739,8 +2764,11 @@ begin
       begin
         GotoXY(6,WhereY-1); Writeln(Right4(currentline));
       end;
-      if UpCaseStr(curL)='.EN' then Break; { Ende der Assemblierung, alles
-                                             nach .en Åberlesen }
+      if UpCaseStr(curL)='.EN' then begin
+        if not IgnoreNextEnd then Break; { Ende der Assemblierung, alles nach .en Åberlesen }
+        curL:='ANOP'; { Zeile ignorieren }
+        IgnoreNextEnd:=False;
+      end;
       a:=Assemble(curL);
       if (Length(a)>0) and (not basedefined) then Errorstop('Base missing!');
       if (Pass=2) then
@@ -2918,6 +2946,7 @@ end.
  - * = aktuelle Position                                       180897/150398
  - .BR & DS > 255                                              170897/150398
  - ÅberprÅfen, wie der Assembler auf leere Makros reagiert     160897/170398
+ - Bedingtes Assemblieren mit .if                              280597/170398
 
 ****************************************************************************
  geplante Erweiterungen:
@@ -2956,6 +2985,7 @@ end.
  - '' statt ""                                                        180897
  - #define fÅr Makros                                                 180897
  - Reassembler                                                        180897
- - Sharewareversion: Sonderbyte nach jedem RTS                        180897
- - Alternative zu .petscii, mit Sachen wie {orange}                   180897
+ - Sharewareversion: Sonderbyte nach jedem RTS                        170398
+ - Alternative zu .petscii, mit Sachen wie {orange}                   170398
+ - Auswerten von AusdrÅcken wie >,<,!,& (Boole)                       170398
 *)
