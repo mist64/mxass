@@ -103,6 +103,8 @@
            00:00:27:43 .ds-Bugfix #2
  05.04.98  00:01:28:14 bessere ASCII-PETSCII-Konversion
  11.04.98  00:03:25:47 Bug in Opcodeliste: ldx abs,y
+ 19.05.98  00:10:52:48 Bugfix: Labels in Makros
+ 20.05.98  00:30:33:27 geosSym.asm, geosMac.asm
 
 }
 
@@ -1096,7 +1098,7 @@ DCW:
     if curL='' then Break;
     b:=Assemble(curL);
     a:=a+b;
-    opaddress:=opaddress+Length(a) { Speicherpos. weiterz„hlen! }
+    opaddress:=opaddress+Length(b) { Speicherpos. weiterz„hlen! }
   until FALSE;
   opaddress:=opaddresssaved;
   { MakroLabels l”schen, da sie nicht mehr gelten }
@@ -2598,7 +2600,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.27e   04-11-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.27f   05-19-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2995,4 +2997,8 @@ end.
  - Alternative zu .petscii, mit Sachen wie {orange}                   170398
  - Auswerten von Ausdrcken wie >,<,!,& (Boole)                       170398
  - Zeilenanzeige korrekt                                        CHECKY130298
+ - SHOW bei Makros                                                    190598
+ - Mnemos an Position 1                                          SOREX210598
+ - Reihenfolge Code/Daten beim Transfer „ndern!                  SOREX210598
+ - Offset<=Offset kann gel”st werden                             SOREX210598
 *)
