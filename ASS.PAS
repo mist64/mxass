@@ -86,6 +86,7 @@
            00:23:34:89 ...
  17.08.97  00:40:31:78 WDC: GEQU, DS, ANOP, 65816 ON/OFF, START, END, LONGA/I
  18.08.97  00:19:07:08 Table Assembler: .EQU, .DB, .DW, .ORG
+ 19.03.98  00:12:05:65 Bugfix: Punkte in/L„nge von Datei/Verzeichnisnamen
 }
 
 {$G+}
@@ -99,7 +100,7 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
       MAXNAMELENGTH=25;
       SOURCEMEM=65535; { Bytes fr Quelltext }
       MAXLINES=3000;
-      MAXLABELS=500;   { Maximale Anzahl der Labels }
+      MAXLABELS=490;   { Maximale Anzahl der Labels }
       MAXFILES=10;      { Maximale Anzahl der Quelldateien }
       MAXMACROS=10;     { Maximale Anzahl der Makros }
       MAXMACROLENGTH=512;{ Bytes fr Makroquelltext }
@@ -204,8 +205,8 @@ var SourceText : ^tSourceText;
     CpuIllegal: boolean;
     opaddress, oldopaddress: word;
     currentline: word;
-    ParameterFile: string[20];
-    Filename: string[20];
+    ParameterFile: string;
+    Filename: string;
     Transfer: byte;
     SaveAs: byte;
     Symbols: boolean;
@@ -224,7 +225,7 @@ var SourceText : ^tSourceText;
 { neu hinzugefgte Variablen }
     i: word;
     j: byte;
-    ins: byte;
+    ins, ins2: byte;
     SwitchParameter: string[10];
     OpcodesFile: file;
     OpcodesHelp: array[0..(ADDMODES shl 1)+4] of byte;
@@ -2461,8 +2462,8 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.25b   08-28-97');
-  Writeln('Copr. 1995-1997 Michael Steil. All rights reserved.');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.26    03-05-98');
+  Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
   ASSDirectory:=ParamStr(0);
@@ -2541,7 +2542,11 @@ begin
     Halt;
   end;
   ins:=Pos('.',ParameterFile);
-  if ins>0 then begin
+  repeat
+    ins2:=Pos('.',Copy(ParameterFile,ins+1,255));
+    if ins2<>0 then ins:=ins+ins2
+  until ins2=0;
+  if (ins>0) and (ins+4>Length(ParameterFile)) then begin
     Filename:=Copy(ParameterFile,1,ins);
   end else begin
     Filename:=ParameterFile+'.';
