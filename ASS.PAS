@@ -99,6 +99,8 @@
            00:15:01:20 Bugifx: = ohne Space davor
            00:05:20:05 Bugfix bei Spaces in RechenausdrÅcken
            00:13:30:67 .comment - .en; .if wert=wert - .en
+ 21.03.98  00:02:35:83 .ds-Bugifx
+           00:00:27:43 .ds-Bugfix #2
 }
 
 {$G+}
@@ -2408,6 +2410,7 @@ begin
         for i:=0 to Times-1 do ocode[ocodeIndex+i]:=number;
         Inc(ocodeIndex,Times);
       end;
+      Inc(opaddress,Times);
       a:='';
     end;
     if (Pseudo='BY') or (Pseudo='DB') or (Pseudo='B') then
@@ -2592,7 +2595,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.27    03-17-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.27d   03-21-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
