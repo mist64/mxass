@@ -101,6 +101,9 @@
            00:13:30:67 .comment - .en; .if wert=wert - .en
  21.03.98  00:02:35:83 .ds-Bugifx
            00:00:27:43 .ds-Bugfix #2
+ 05.04.98  00:01:28:14 bessere ASCII-PETSCII-Konversion
+ 11.04.98  00:03:25:47 Bug in Opcodeliste: ldx abs,y
+
 }
 
 {$G+}
@@ -529,7 +532,7 @@ function Petscii(S: char): char;
 var a: byte;
 begin
   a:=Ord(S);
-  if (a>64) and (a<91) then begin Petscii:=Chr(a+32); Exit; end;
+  if (a>64) and (a<91) then begin Petscii:=Chr(a+128); Exit; end;
   if (a>96) and (a<123) then begin Petscii:=Chr(a-32); Exit; end;
   Petscii:=S;
 end;
@@ -556,7 +559,7 @@ begin
     jb @@petend
     cmp al, 92
     ja @@pet1
-    add al, 32
+    add al, 128
     jmp @@petend
 @@pet1:
     cmp al, 97
@@ -784,7 +787,7 @@ begin
         end;
         if not Labelfound then
         begin
-          if Pass=1 then unknown:=TRUE else Errorstop('Label not fond!');
+          if Pass=1 then unknown:=TRUE else Errorstop('Label not found!');
         end else begin
           {! number:=Value[help]; ???}
         end;
@@ -2595,7 +2598,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.27d   03-21-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.27e   04-11-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2991,4 +2994,5 @@ end.
  - Sharewareversion: Sonderbyte nach jedem RTS                        170398
  - Alternative zu .petscii, mit Sachen wie {orange}                   170398
  - Auswerten von Ausdrcken wie >,<,!,& (Boole)                       170398
+ - Zeilenanzeige korrekt                                        CHECKY130298
 *)
