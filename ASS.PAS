@@ -62,6 +62,8 @@
            00:01:33:31 ...
  09.03.97  00:11:03:98 64NET: Bugfix, .LO
         ->(29:56)
+ 21.05.97  00:21:31:26 Opcodes-Datei als EXE-Overlay
+           00:20:42:57 LOs auch im Ass-Verz.
 }
 
 {$G+}
@@ -110,6 +112,9 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
 
       PORT=$378; { LPT1 }
 
+      OPCODESFILENAME='OPCODES.A18';
+      OPCODESFILELENGTH=5350;
+
 type tSourceText = array[0..SOURCEMEM-1] of byte;
      numbertype = longint;
 
@@ -132,6 +137,7 @@ var SourceText : ^tSourceText;
     MacroValue: array[0..MAXMACPARA] of word;
     ocode: array[0..MAXOCODE] of byte;
 { Variablen }
+    ASSDirectory: string; { Verzeichnis, in dem sich ASS.EXE befindet }
     Loads: string[255];
     Time: word absolute $40:$6C;
     StartTime: word;
@@ -1462,7 +1468,18 @@ begin
 
   { Co:=Environ$("6502")+" "+Command$+" " }
 
-  ClrScr; Writeln; Center('6502-X-Assembler'); Center('(C)1996 MIST'); Writeln;
+  ClrScr; Writeln; Center('6502-X-Assembler'); Center('(C)1997 MIST'); Writeln;
+
+  ASSDirectory:=ParamStr(0);
+  i:=Length(ASSDirectory);
+  repeat
+    if ASSDirectory[i]='\' then
+    begin
+      ASSDirectory:=Copy(ASSDirectory,1,i);
+      Break;
+    end;
+    Dec(i);
+  until i=0;
 
 { Kommandozeile parsen }
   ParameterFile:=''; Transfer:=0; SaveAs:=0; Symbols:=FALSE;
@@ -1510,7 +1527,19 @@ begin
   end;
 
   { Opcodes einlesen }
-  Assign(OpcodesFile,'OPCODES.A18'); Reset(OpcodesFile,1);
+  Assign(OpcodesFile,OPCODESFILENAME);   { existiert separate Datei?    }
+  {$I-} Reset(OpcodesFile,1); {$I+}
+  if IOResult>0 then                     { nein, dann aus EXE-Overlay   }
+  begin                                  { laden (funktioniert nicht in }
+    Assign(OpcodesFile,ParamStr(0));     { der Entwicklungsumgebung!)   }
+    {$I-} Reset(OpcodesFile,1); {$I+}
+    if IOResult>0 then
+    begin
+      Writeln('Opcodes table not found!');
+      Halt;
+    end;
+    Seek(OpcodesFile,FileSize(OpcodesFile)-OPCODESFILELENGTH);
+  end;
   NumberOfMnemos:=1;
   repeat
     BlockRead(OpcodesFile, OpcodesHelp, (ADDMODES shl 1)+4, BytesRead);
@@ -1867,8 +1896,12 @@ codeok:
       Loads:=Copy(Loads,j+1,255);
       if FindFile(Filename)=FALSE then
       begin
-        Writeln; Writeln('File "',Filename,'" not found!');
-        Halt;
+        Filename:=ASSDirectory+Filename;
+        if FindFile(Filename)=FALSE then
+        begin
+          Writeln; Writeln('File "',Filename,'" not found!');
+          Halt;
+        end;
       end;
       Assign(SaveFile,Filename); Reset(SaveFile,1);
       BlockRead(SaveFile,i,2);
@@ -1915,6 +1948,8 @@ end.
    mîglich"                                                    080796/171196
  - Screencode-Text                                             080796/240197
  - INCLUDE von Objectfiles                                     300596/240197
+ - Leerzeichen bei .LA                                   CHECKY080397/210597
+ - Suchen nach .LO-Dateien und .A18 im ASS-Verzeichnis   CHECKY080397/210597
 
 ****************************************************************************
  geplante Erweiterungen:
@@ -1938,14 +1973,12 @@ end.
  - Spaces bei Rechnungen rausfiltern                                  191196
  - Synchronisationsfehler erkennen                                    260197
  - Abbruch bei Transfer                                         CHECKY080397
- - Leerzeichen bei .LA                                          CHECKY080397
- - Suchen nach .LO-Dateien und .A18 im ASS-Verzeichnis          CHECKY080397
  - Flexible Port-Angabe fÅr PC64 UND 64NET per Parameter              090397
- - Unterstrich _ mu· in Labelnamen erlaubt sein                       040697
+ - Unterstrich _ mu· in Labelnamen erlaubt sein                       060497
+ - mehrere Bases; Base<>Position im Speicher                     HOOGO210597
+ - GEOS!                                                              210597
+ - Linken von Libraries/Emulatoren                                    210597
+ - Transfer von 0 Bytes abfangen!                                     210597
+ - Label und Mnemo in einer Zeile                                     220597
 *)
-
-
-
-
-
 
