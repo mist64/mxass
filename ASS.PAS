@@ -82,6 +82,9 @@
  25.06.97  00:06:30:22 Bugfix bei Pseudo-Opcodes
  02.07.97  00:02:23:89 Anzeigen der Åbertragenen Dateien
            00:06:28:21 Bug bei .LA mit Leerzeichen behoben
+ 16.08.97  01:09:10:58 KompatibilitÑt zu anderen Assemblern: #, DC, EQU
+           00:23:34:89 ...
+ 17.08.97  00:40:31:78 WDC: GEQU, DS, ANOP, 65816 ON/OFF, START, END, LONGA/I
 }
 
 {$G+}
@@ -115,7 +118,7 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
       SEP=#0+#1+#2+#3+#4+#5+#6+#7+#8+#9+#10+#11+#12+#13+#14+#15+#16+#17+#18+
           #19+#20+#21+#22+#23+#24+#25+#26+#27+#28+#29+#30+#31+#32+#33+#35+#38+
           #39+#40+#41+#42+#43+#44+#45+#46+#47+#58+#59+#61+#63+#64+#91+#92+#93+
-          #94+#95+#96+#123+#124+#125+#126+#127;
+          #94+#96+#123+#124+#125+#126+#127;
       KEINRECHENZEICHEN=#0;
       NONE8=$FF;
       NONE16=$FFFF;
@@ -347,6 +350,8 @@ var actSourcefile: text;
     IncFile: string;
     IncFound: boolean;
     NextLineInBuffer: boolean;
+    testequ: string;
+label EQU;
 begin
   if FindFile(Filename)=FALSE then
   begin
@@ -365,24 +370,32 @@ begin
     end else begin
       Readln(actSourceFile, Line);
     end;
+    if (Line[1]='#') or (Line[1]='*') then Line:=''; { Kommentar }
     ins:=Pos(SEMICOLON, Line);
     if ins>0 then Line[0]:=Chr(ins-1); { REMs lîschen }
  { Zeile mit Label und Mnemo aufspalten }
     if (Line[0]<>#0) and (Line[1]<>' ') and (Line[1]<>#9)
     and (Line[1]<>'.') and (NextLineInBuffer=FALSE) then
     begin        { ^ Pseudo-Opcodes dÅrfen weiterhin an 1. Stelle stehen }
-      ins:=Pos(' ', Line);
-      ins2:=Pos(#9, Line);
-      if (ins2<ins) and (ins2<>0) then ins:=ins2;
-      if ins>0 then
+      ins:=Pos(' ', Line); if ins=0 then ins:=255;
+      ins2:=Pos(#9, Line); if ins2=0 then ins2:=255;
+      if ins2<ins then ins:=ins2;
+      testequ:=UpCaseStr(Copy(Trim(Copy(Line,ins+1,255)),1,4));
+      if (Copy(testequ,1,3)='EQU') or (testequ='GEQU') or (testequ='.EQU') then goto EQU;
+      if ins<>255 then
       begin
         Line2:=Copy(Line,ins+1,255);
         Line[0]:=Chr(ins-1);
         if Line[Length(Line)]<>COLON then Line:=Line+COLON;
         NextLineInBuffer:=TRUE;
         { -> Line wird abgelegt, Line2 beim nÑchsten Durchlauf }
+      end else begin
+        Line2:='';
+        if Line[Length(Line)]<>COLON then Line:=Line+COLON;
+        NextLineInBuffer:=TRUE;
       end;
     end else begin
+EQU:
       NextLineInBuffer:=FALSE;
     end;
     Line:=Trim(Line);
@@ -429,7 +442,7 @@ begin
         end;
       end;
     end;
-  until Eof(actSourceFile);
+  until Eof(actSourceFile) and (NextLineInBuffer=FALSE);
   Close(ActSourceFile);
   Dec(SourceFiles); { dem Aufrufer wieder die richtige Ebene Åbergeben }
 end;
@@ -811,37 +824,169 @@ var MacroNum: word;
     La: string;
     opaddresssaved: word;
     a,b: string;
+    Statement: string;
+    Operand, Operand2: string;
+    byteword: char;
+    testequ: string;
+label DCB, DCW;
 begin
   ins:=FindSeparator(Line);
   if ins=0 then
   begin
-    actMacroName:=Line;
-    actMacroOperand:='';
+    Statement:=Line;
+    Operand:='';
   end else begin
-    actMacroName:=Copy(Line,1,ins-1);
-    actMacroOperand:=Copy(Line,ins+1,255);
+    Statement:=Copy(Line,1,ins-1);
+    Operand:=Copy(Line,ins+1,255);
   end;
   ArrayFound:=FALSE;
   if Macros>0 then for ArrayScan:=0 to Macros-1 do
                    begin
-                     if MacroName[ArrayScan]=actMacroName then begin MacroNum:=ArrayScan; ArrayFound:=TRUE; Break; end;
+                     if MacroName[ArrayScan]=Statement then begin MacroNum:=ArrayScan; ArrayFound:=TRUE; Break; end;
                    end;
-  if not ArrayFound then begin MacroError:=TRUE; Exit; end;
+  if not ArrayFound then
+  begin
+{ Pseudo-Statements ohne fÅhrenden Punkt (WDC-Konvention) }
+    Statement:=UpCaseStr(Statement);
+    PseudoOK:=FALSE;
+    if Statement='DCB' then goto DCB;
+    if Statement='DCW' then goto DCW;
+    if (Statement='DC') or (Statement='DCR') then { wie '.BY'/'.WO' }
+    begin
+      byteword:=Operand[1];
+      Operand:=Trim(Copy(Operand,2,255));
+      if UpCase(byteword)='B' then
+      begin
+DCB:
+        PseudoOK:=TRUE;
+        Operand:=Trim(Operand);
+        insold:=1;
+        Operand:=Operand+',';
+        a:='';
+        repeat
+          ins:=Pos(',',KillQuotes(Copy(Operand,insold,255)));
+          if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
+          unknown:=FALSE;
+          Operand2:=Copy(Operand,insold,ins-1);
+          if (Operand2[1]='"') and (Operand2[Length(Operand2)]='"') then
+          { ASCII-String }
+          begin
+            b:=Copy(Operand2,2,Length(Operand2)-2);
+            if (AsciiFlag=0) and (Pass=2) then b:=SPetscii(b);
+            a:=a+b;
+          end else begin
+            number:=GetNumber(Operand2);
+            if unknown then number:=0;
+            if number>256 then Errorstop('Byte > 8 Bit!');
+            a:=a+Chr(number);
+          end;
+          insold:=insold+ins;
+        until FALSE;
+      end;
+      if UpCase(byteword)='W' then
+      begin
+DCW:
+        PseudoOK:=TRUE;
+        insold:=1;
+        Operand:=Operand+',';
+        a:='';
+        repeat
+          ins:=Pos(',',Copy(Operand,insold,255));
+          if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
+          unknown:=FALSE;
+          number:=GetNumber(Copy(Operand,insold,ins-1));
+          if unknown then number:=0;
+          a:=a+Chr(Lo(number))+Chr(Hi(number));
+          insold:=insold+ins;
+        until FALSE;
+      end;
+    end;
+    if Statement='DS' then
+    begin
+      PseudoOK:=TRUE;
+      unknown:=FALSE;
+      times:=GetNumber(Operand);
+      if unknown then Errorstop('Repeat number has to be a constant!');
+      a:='';
+      for i:=1 to times do a:=a+#0;
+    end;
+    if (Statement='ANOP') or
+       (Statement='START') or (Statement='END') or (Statement='KEEP') then
+    begin                                { alle ignorieren }
+      PseudoOK:=TRUE; a:='';
+    end;
+    if Statement='ORG' then
+    begin
+      PseudoOK:=TRUE;
+      unknown:=FALSE;
+      number:=GetNumber(Operand);
+      if unknown=TRUE then Errorstop('Base has to be a constant!');
+      if basedefined then
+      begin
+        if number<opaddress then Errorstop('Base error!');
+        if Pass=2 then Inc(ocodeIndex,number-opaddress);
+        if ocodeIndex>MAXOCODE then Errorstop('Object code overflow!');
+      end else begin
+        startaddress:=number;
+      end;
+      opaddress:=number;
+      basedefined:=TRUE;
+    end;
+    if Statement='65816' then
+    begin
+      Operand:=UpCaseStr(Trim(Operand));
+      if Operand='ON' then begin Cpu:=2; PseudoOK:=TRUE; end;{65816 oder 65802}
+      if Operand='OFF' then begin Cpu:=0; PseudoOK:=TRUE; end;{6502}
+      if not PseudoOK then Errorstop('"65816 ON" for 65816/65802; "65816 OFF" for 6502.');
+    end;
+    if Statement='LONGA' then
+    begin
+      if Cpu<>2 then Errorstop('Only supported by 65802/65816!');
+      Operand:=UpCaseStr(Trim(Operand));
+      if Operand='ON' then begin SizeAccu:=TRUE; PseudoOK:=TRUE; end;
+      if Operand='OFF' then begin SizeAccu:=FALSE; PseudoOK:=TRUE; end;
+      if not PseudoOK then Errorstop('ON or OFF required.');
+    end;
+    if Statement='LONGI' then
+    begin
+      if Cpu<>2 then Errorstop('Only supported by 65802/65816!');
+      Operand:=UpCaseStr(Trim(Operand));
+      if Operand='ON' then begin SizeIndex:=TRUE; PseudoOK:=TRUE; end;
+      if Operand='OFF' then begin SizeIndex:=FALSE; PseudoOK:=TRUE; end;
+      if not PseudoOK then Errorstop('ON or OFF required.');
+    end;
+    if not PseudoOK then Operand:=Trim(Operand); { fÅr nÑchsten Test }
+    testequ:=UpCaseStr(Copy(Operand,1,4));
+    if ((Copy(testequ,1,3)='EQU') or (testequ='GEQU') or (testequ='.EQU')) and (PseudoOK=FALSE) then
+    begin
+      if testequ='GEQU' then Operand:=Trim(Copy(Operand,5,255)) else Operand:=Trim(Copy(Operand,4,255));
+      PseudoOK:=TRUE; a:='';
+      unknown:=FALSE;
+      number:=GetNumber(Operand);
+      if unknown=FALSE then SetLabel(Statement, number);
+    end;
+    if PseudoOK then
+    begin
+      AssembleMacro:=a; MacroError:=FALSE; Exit;
+    end else begin
+      MacroError:=TRUE; Exit;
+    end;
+  end;
   { Parameter auswerten }
-  if actMacroOperand<>'' then
+  if Operand<>'' then
   begin
     Mask:=MacroOperand[MacroNum]+',';
-    actMacroOperand:=actMacroOperand+',';
+    Operand:=Operand+',';
     MacroLabels:=0;
     { 'redim MacroLabel$(0%:10), MacroValue??(0:10) nicht nîtig, siehe unten }
     repeat
-      ins1:=Pos(',',actMacroOperand);
+      ins1:=Pos(',',Operand);
       { instr(ins1old??,MacroOperand$,",") }
       ins2:=Pos(',',Mask);
       { instr(ins2old??,Mask$,",") }
       if (ins1=0) and (ins2=0) then Break;
       if (ins1=0) or (ins2=0) then Errorstop('Parameter error!');
-      V:=Copy(actMacroOperand,1,ins1-1);
+      V:=Copy(Operand,1,ins1-1);
       { mid$(MacroOperand$,ins1old??, ins1??-ins1old??) }
       La:=Copy(Mask,1,ins2-1);
       { mid$(Mask$,ins2old??, ins2??-ins2old??) }
@@ -851,7 +996,7 @@ begin
       MacroValue[MacroLabels]:=GetNumber(V);
       { '? MacroLabel$(MacroLabels??);"=";MacroValue??(MacroLabels??) }
       Inc(MacroLabels);
-      actMacroOperand:=Copy(actMacroOperand,ins1+1,255);
+      Operand:=Copy(Operand,ins1+1,255);
       Mask:=Copy(Mask,ins2+1,255);
     until FALSE;
   end;
@@ -898,7 +1043,11 @@ var actMnemo: string[3];
 
     Cpos: byte;
     number, number2: numbertype;
+    s: byte;
+label nMnemo;
 begin
+  s:=FindSeparator(Line);
+  if (s<>4) and (s<>0) then goto nMnemo;
   actMnemo:=UpCaseStr(Copy(Line,1,3));
   Operand:=Trim(Copy(Line,4,255));
   MnemoNum:=0;
@@ -908,6 +1057,7 @@ begin
   end;
   if MnemoNum=0 then { vielleicht ein Makroname? }
   begin
+nMnemo:
     Assemble65xx:=AssembleMacro(Line);
     if MacroError then Errorstop ('Unknown Mnemo!');
     Exit;
@@ -2154,7 +2304,7 @@ begin
       a:='';
       for i:=1 to times do a:=a+Chr(number);
     end;
-    if Pseudo='BY' then
+    if (Pseudo='BY') or (Pseudo='DB') then
     begin
       PseudoOK:=TRUE;
       insold:=1;
@@ -2667,4 +2817,13 @@ end.
  - Einheitlichere Kommandozeile                                       300597
  - ausfÅhrliche Hilfestellung als Overlay                             300597
  - Alle Bildschirmausgaben au·er Line ??/?? nach STDOUT               300597
+ - ÅberprÅfen, wie der Assembler auf leere Makros reagiert            160897
+ - alles, was nach den Makros entdeckt wird (DC, EQU) fehlt in SHOW   160897
+ - jmp.l                                                              160897
+ - asl a                                                              160897
+ - .BR & DS > 255                                                     170897
+ - $12:1234                                                           170897
+ - Unterscheidung von $0002 und DP:$02 beim 65816 (siehe Seite 202)   170897
+ - DC A'ASCII'                                                        170897
+ - GB Z80                                                             180897
 *)
