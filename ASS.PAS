@@ -113,6 +113,9 @@
  27.05.98  00:21:20:76 Secret message
  01.06.98  00:35:37:99 GoDot StartUp...
  05.06.98  00:03:21:24 LONGA/LONGI/65816 bugfix
+           00:20:45:82 multiple bases...
+ 06.06.98  00:44:35:69 ...
+           00:11:33:18 ...!
 }
 
 {$G+}
@@ -218,6 +221,7 @@ var SourceText : ^tSourceText;
 { Variablen }
     ASSDirectory: string; { Verzeichnis, in dem sich ASS.EXE befindet }
     Loads: string[255];
+    StoreAddresses: string[255];
     LoadAddress: word;
     Time: word absolute $40:$6C;
     StartTime: word;
@@ -245,7 +249,6 @@ var SourceText : ^tSourceText;
     Symbols: boolean;
     SourceFiles: word;
     lines, reallines: word;
-    basedefined: boolean;
     Pseudo, Operand: string;
     number, number2: numbertype;
     startaddress: word;
@@ -760,18 +763,23 @@ begin
         if LLabels=0 then Errorstop('(1)Local label not found!');
         if S[1]='+' then { nur Vorw„rtsverweise erlaubt }
         begin
-        { (Annahme, lokale Labels sind nach Adresse sortiert) }
           number:=0;
           for i:=0 to LLabels-1 do
           begin
-            if LValue[i]>opaddress then begin number:=LValue[i]; Break; end;
+            if (LValue[i]>opaddress) and (number>opaddress) then
+            begin
+              number:=LValue[i];
+            end;
           end;
           if number=0 then Errorstop('(2)Local label not found!');
-        end else begin
+        end else begin { '-' }
           number:=0;
           for i:=LLabels-1 downto 0 do
           begin
-            if LValue[i]<=opaddress then begin number:=LValue[i]; Break; end;
+            if (LValue[i]<=opaddress) and (number<opaddress) then
+            begin
+              number:=LValue[i];
+            end;
           end;
           if number=0 then Errorstop('(2)Local label not found!');
           { Nebeneffekt: lokales Label darf nicht Wert 0 haben }
@@ -825,16 +833,14 @@ var help: word;
 begin
   if L='*' then begin { Base Address setzen }
     if unknown=TRUE then Errorstop('Base has to be a constant!');
-    if basedefined then
+    if Length(StoreAddresses)>0 then
     begin
-      if V<opaddress then Errorstop('Base error!');
-      if Pass=2 then Inc(ocodeIndex,V-opaddress);
-      if ocodeIndex>MAXOCODE then Errorstop('Object code overflow!');
+      if Length(StoreAddresses)>250 then Errorstop('Tooo many base definitions!');
+      StoreAddresses:=StoreAddresses+Chr(Lo(ocodeIndex))+Chr(Hi(ocodeIndex))+Chr(Lo(V))+Chr(Hi(V));
     end else begin
-      startaddress:=V;
+      StoreAddresses:=#0+#0+Chr(Lo(V))+Chr(Hi(V))
     end;
     opaddress:=V;
-    basedefined:=TRUE;
     Exit;
   end;
 
@@ -1005,17 +1011,7 @@ DCW:
       PseudoOK:=TRUE; a:='';
       unknown:=FALSE;
       number:=GetNumber(Operand);
-      if unknown=TRUE then Errorstop('Base has to be a constant!');
-      if basedefined then
-      begin
-        if number<opaddress then Errorstop('Base error!');
-        if Pass=2 then Inc(ocodeIndex,number-opaddress);
-        if ocodeIndex>MAXOCODE then Errorstop('Object code overflow!');
-      end else begin
-        startaddress:=number;
-      end;
-      opaddress:=number;
-      basedefined:=TRUE;
+      SetLabel('*',number);
     end;
     if Statement='65816' then
     begin
@@ -2482,6 +2478,20 @@ begin
       startjumpaddress:=number;
       Transfer:=Transfer or 128; { bei Transfer Start einschalten }
     end;
+    if Pseudo='SA' then { store at }
+    begin
+      PseudoOK:=TRUE;
+      unknown:=FALSE;
+      number:=GetNumber(Operand);
+      StoreAddresses:=StoreAddresses+Chr(Lo(ocodeIndex))+Chr(Hi(ocodeIndex))+Chr(Lo(number))+Chr(Hi(number));
+    end;
+    if Pseudo='AS' then { assemblefor; logische Assemblieradresse „ndern, }
+    begin                            { Ort im Speicher beibehalten }
+      PseudoOK:=TRUE;
+      unknown:=FALSE;
+      number:=GetNumber(Operand);
+      opaddress:=number;
+    end;
     if Pseudo='OB' then { .object }
     begin
       PseudoOK:=TRUE;
@@ -2514,7 +2524,7 @@ begin
       number:=GetNumber(Copy(Operand,ins+1,255));
       if unknown then number:=0;
       if number>256 then Errorstop('Byte > 8 Bit!');
-      if not basedefined then Errorstop('Base missing!');
+      if Length(StoreAddresses)=0 then Errorstop('Base missing!');
       if Pass=2 then begin
         if ocodeIndex+times>MAXOCODE then Errorstop('Object code overflow!');
         for i:=0 to Times-1 do ocode[ocodeIndex+i]:=number;
@@ -2694,6 +2704,9 @@ codeok:
 end;
 
 function DoTransfer: boolean;
+var index, index2, address, copylength: word;
+    CStoreAddresses: string[254];
+    ocodecopy: array[0..MAXOCODE] of byte;
 begin
   DoTransfer:=TRUE;
   if WaitForKey then begin
@@ -2701,10 +2714,26 @@ begin
     repeat until KeyPressed;
     Writeln;
   end;
-  case Transfer and 127 of
-  1: { 64NET } if Transfer64NET(Startaddress, ocode, ocodeIndex) then Exit;
-  2: { PC64 }  if PC64POKELC64(Startaddress, ocode, ocodeIndex) then Exit;
-  end;
+  CStoreAddresses:=StoreAddresses;
+  repeat
+    index:=Ord(CStoreAddresses[1])+Ord(CStoreAddresses[2]) shl 8;
+    address:=Ord(CStoreAddresses[3])+Ord(CStoreAddresses[4]) shl 8;
+    CStoreAddresses:=Copy(CStoreAddresses,5,255);
+    if Length(CStoreAddresses)>0 then begin
+      index2:=Ord(CStoreAddresses[1])+Ord(CStoreAddresses[2]) shl 8;
+    end else begin
+      index2:=ocodeIndex;
+    end;
+    copylength:=index2-index;
+    if copylength>0 then
+    begin
+      for i:=0 to copylength-1 do ocodecopy[i]:=ocode[index+i];
+      case Transfer and 127 of
+      1: { 64NET } if Transfer64NET(address, ocodecopy, copylength) then Exit;
+      2: { PC64 }  if PC64POKELC64(address, ocodecopy, copylength) then Exit;
+      end;
+    end;
+  until CStoreAddresses='';
   while Loads<>'' do
   begin
     j:=Pos(#0,Loads);
@@ -2758,7 +2787,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.28d   06-05-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.29à   06-06-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2926,7 +2955,7 @@ begin
     ocodeIndex:=0;
     opaddress:=0;
     AsciiFlag:=1; Cpu:=0; CpuIllegal:=FALSE; SizeAccu:=FALSE; SizeIndex:=FALSE;
-    basedefined:=FALSE;
+    StoreAddresses:='';
     SourceIndex:=0;
     i:=0;
     repeat
@@ -2943,7 +2972,7 @@ begin
         IgnoreNextEnd:=False;
       end;
       a:=Assemble(curL);
-      if (Length(a)>0) and (not basedefined) then Errorstop('Base missing!');
+      if (Length(a)>0) and (Length(StoreAddresses)=0) then Errorstop('Base missing!');
       if (Pass=2) then
       begin
         if ocodeIndex+Length(a)>MAXOCODE then Errorstop('Object code overflow!');
@@ -3141,4 +3170,6 @@ end.
 >      main=$xxxx   doesn't work
 >main=$xxxx   doesn't work either
 >main= $xxxx   works
+ - Bug: .text ".;" -> ; wird als Kommentar erkannt
+
 *)
