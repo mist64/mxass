@@ -13,7 +13,7 @@
  27.05.96  00:02:46:78 Bugfix: Spaces bei Rechenausdrcken
  29.05.96: 01:03:35:51 lokale Labels (beginnen mit "+" oder "-")
  30.05.96: 00:06:57:44 Bugfix bei lokalen Labels und "array scan"-Ausdrcken
-         ->(8:06)
+        ->(08:06)
  30.05.96: 00:35:08:28 Kommandozeilenparameter, Env.Var., SaveAs, Transfer
            00:01:41:52 Weglassen von Erweiterung beim Filenamen m”glich
            00:00:52:01 Bugfix
@@ -92,6 +92,9 @@
  11.03.98  00:07:31:53 '=' wie EQU, .setpc, .b, .w (Professional Ass)
  14.03.98  00:19:31:23 .ob wie -PRG, mit variablem Dateinamen (Hypra-Ass)
            00:13:59:10 .en als Ende des Quelltexts (Hypra-Ass)
+ 15.03.98  00:16:16:48 .lo "filename",address
+           00:22:04:37 * als aktuelle Adresse, .ds > 255, .ds=0-Bugfix
+           00:10:03:25 *-Bugfix
 }
 
 {$G+}
@@ -193,6 +196,7 @@ var SourceText : ^tSourceText;
 { Variablen }
     ASSDirectory: string; { Verzeichnis, in dem sich ASS.EXE befindet }
     Loads: string[255];
+    LoadAddress: word;
     Time: word absolute $40:$6C;
     StartTime: word;
     AssemblyTime: real;
@@ -635,7 +639,11 @@ begin
   end else begin
     locallabelflag:=FALSE;
   end;
-  ins:=FindSeparator(S);
+  if (S[1]='*') and (S<>'') then begin
+    if Length(S)>1 then ins:=2 else ins:=0;
+  end else begin
+    ins:=FindSeparator(S);
+  end;
   if ins>0 then { komplexer Ausdruck mit Rechenzeichen }
   begin
     S2:=Copy(S,ins+1,255);
@@ -650,6 +658,11 @@ begin
   end else begin
     Rechenzeichen:=KEINRECHENZEICHEN;
     if locallabelflag then S:=realS;
+  end;
+  if (S[1]='*') and (S<>'') then { aktuelle Assembly-Adresse }
+  begin
+    number:=opaddress;
+    S:='';
   end;
   if (S[1]='$') and (S<>'') then { hex-Konstante }
   begin
@@ -2344,13 +2357,18 @@ begin
       if Pos(',',Copy(Operand,ins+1,255))>0 then Errorstop('Too many operands!');
       unknown:=FALSE;
       times:=GetNumber(Copy(Operand,1,ins-1));
-      if unknown then Errorstop('Repeat number has to be a constant!');
+      if unknown or (times=0) then Errorstop('Repeat number error!');
       unknown:=FALSE;
       number:=GetNumber(Copy(Operand,ins+1,255));
       if unknown then number:=0;
       if number>256 then Errorstop('Byte > 8 Bit!');
+      if not basedefined then Errorstop('Base missing!');
+      if Pass=2 then begin
+        if ocodeIndex+times>MAXOCODE then Errorstop('Object code overflow!');
+        for i:=0 to Times-1 do ocode[ocodeIndex+i]:=number;
+        Inc(ocodeIndex,Times);
+      end;
       a:='';
-      for i:=1 to times do a:=a+Chr(number);
     end;
     if (Pseudo='BY') or (Pseudo='DB') or (Pseudo='B') then
     begin
@@ -2469,17 +2487,21 @@ begin
       until FALSE;
       end;
     end;
-(*    if Pseudo='EN' then { bedeutet hier: Ende des Quelltexts }
-    begin               { aber auch: Ende eines Makros (siehe dort!) }
-      Errorstop('No macro to end!');
-    end; MIST! *)
     if Pseudo='LO' then
     begin
       if Operand='' then Errorstop('Filename required');
       if Operand[1]='"' then Operand:=Copy(Operand,2,255);
-      if Operand[Length(Operand)]='"' then Operand[0]:=Chr(Length(Operand)-1);
-      if Length(Loads)+Length(Operand)>254 then Errorstop('Too many files to load!');
-      if Pass=2 then Loads:=Loads+Operand+#0;
+      i:=Pos('"',Operand); if i=0 then i:=255;
+      a:=Copy(Operand,1,i-1); Operand:=Copy(Operand,i+1,255);
+      if Operand<>'' then begin
+        if Operand[1]<>',' then Errorstop('"," expected!');
+        number:=GetNumber(Copy(Operand,2,255));
+      end else begin
+        number:=$FFFF;
+      end;
+      if Length(Loads)+Length(a)+2>254 then Errorstop('Too many files to load!');
+      if Pass=2 then Loads:=Loads+a+#0+Chr(Lo(number))+Chr(Hi(number));
+      a:='';
       PseudoOK:=TRUE;
     end;
     if not PseudoOK then Errorstop('Unknown pseudo opcode!');
@@ -2507,7 +2529,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.26e   03-14-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.26f   03-15-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2682,7 +2704,7 @@ begin
                                              nach .en berlesen }
       a:=Assemble(curL);
       if (Length(a)>0) and (not basedefined) then Errorstop('Base missing!');
-      if Pass=2 then
+      if (Pass=2) then
       begin
         if ocodeIndex+Length(a)>MAXOCODE then Errorstop('Object code overflow!');
         for j:=1 to Length(a) do ocode[ocodeIndex+j-1]:=Ord(a[j]);
@@ -2786,7 +2808,8 @@ begin
     begin
       j:=Pos(#0,Loads);
       Filename:=Copy(Loads,1,j-1);
-      Loads:=Copy(Loads,j+1,255);
+      LoadAddress:=Ord(Loads[j+1])+Ord(Loads[j+2]) shl 8;
+      Loads:=Copy(Loads,j+3,255);
       if FindFile(Filename)=FALSE then
       begin
         Filename:=ASSDirectory+Filename;
@@ -2799,6 +2822,7 @@ begin
       Write(Filename,' ');
       Assign(SaveFile,Filename); Reset(SaveFile,1);
       BlockRead(SaveFile,i,2);
+      if LoadAddress<>$FFFF then i:=LoadAddress;
       repeat
         BlockRead(SaveFile,ocode,MAXOCODE,BytesRead);
         if (Transfer and 127)=1 then POKELC64(i,ocode,BytesRead);
