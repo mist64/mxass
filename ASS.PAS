@@ -95,6 +95,7 @@
  15.03.98  00:16:16:48 .lo "filename",address
            00:22:04:37 * als aktuelle Adresse, .ds > 255, .ds=0-Bugfix
            00:10:03:25 *-Bugfix
+ 17.03.98  00:15:46:94 Base-Definition Åber *=$C000 (Turbo Ass)
 }
 
 {$G+}
@@ -385,7 +386,6 @@ begin
     end else begin
       Readln(actSourceFile, Line);
     end;
-    if Line[1]='*' then Line:=''; { Kommentar }
     ins:=Pos(SEMICOLON, Line);
     if ins>0 then Line[0]:=Chr(ins-1); { REMs lîschen }
  { Zeile mit Label und Mnemo aufspalten }
@@ -789,6 +789,21 @@ procedure SetLabel (L: string; V: word);
 var help: word;
     ArrayScan: word;
 begin
+  if L='*' then begin { Base Address setzen }
+    if unknown=TRUE then Errorstop('Base has to be a constant!');
+    if basedefined then
+    begin
+      if V<opaddress then Errorstop('Base error!');
+      if Pass=2 then Inc(ocodeIndex,V-opaddress);
+      if ocodeIndex>MAXOCODE then Errorstop('Object code overflow!');
+    end else begin
+      startaddress:=V;
+    end;
+    opaddress:=V;
+    basedefined:=TRUE;
+    Exit;
+  end;
+
   if (L[1]='+') or (L[1]='-') then
   begin
 { bei lokalen Variablen nicht testen, ob schon definiert }
@@ -861,14 +876,19 @@ var MacroNum: word;
     testequ: string;
 label DCB, DCW;
 begin
-  ins:=FindSeparator(Line);
-  if ins=0 then
-  begin
-    Statement:=Line;
-    Operand:='';
+  if Line[1]='*' then begin
+    Statement:=Line[1];
+    Operand:=Copy(Line,2,255);
   end else begin
-    Statement:=Copy(Line,1,ins-1);
-    Operand:=Copy(Line,ins+1,255);
+    ins:=FindSeparator(Line);
+    if ins=0 then
+    begin
+      Statement:=Line;
+      Operand:='';
+    end else begin
+      Statement:=Copy(Line,1,ins-1);
+      Operand:=Copy(Line,ins+1,255);
+    end;
   end;
   ArrayFound:=FALSE;
   if Macros>0 then for ArrayScan:=0 to Macros-1 do
@@ -996,7 +1016,8 @@ DCW:
       PseudoOK:=TRUE; a:='';
       unknown:=FALSE;
       number:=GetNumber(Operand);
-      if unknown=FALSE then SetLabel(Statement, number);
+      { if unknown=FALSE then}
+      SetLabel(Statement, number);
     end;
     if PseudoOK then
     begin
@@ -2310,17 +2331,7 @@ begin
       PseudoOK:=TRUE;
       unknown:=FALSE;
       number:=GetNumber(Operand);
-      if unknown=TRUE then Errorstop('Base has to be a constant!');
-      if basedefined then
-      begin
-        if number<opaddress then Errorstop('Base error!');
-        if Pass=2 then Inc(ocodeIndex,number-opaddress);
-        if ocodeIndex>MAXOCODE then Errorstop('Object code overflow!');
-      end else begin
-        startaddress:=number;
-      end;
-      opaddress:=number;
-      basedefined:=TRUE;
+      SetLabel('*',number);
     end;
     if Pseudo='ST' then { .start }
     begin
@@ -2529,7 +2540,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.26f   03-15-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.27    03-17-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2874,6 +2885,11 @@ end.
  - Pseudo-Statements mÅssen auch in Makros erlaubt sein!       191196/300597
  - Makros in Z80-Code                                          300597/300597
  - Unterstrich _ mu· in Labelnamen erlaubt sein                060497/170897
+ - Bugs bei Namen mit ".."                                     300597/050398
+ - .start-Pseudo-Opcode, um Einsprungsadresse festzulegen      300596/060398
+ - * = aktuelle Position                                       180897/150398
+ - .BR & DS > 255                                              170897/150398
+ - ÅberprÅfen, wie der Assembler auf leere Makros reagiert     160897/170398
 
 ****************************************************************************
  geplante Erweiterungen:
@@ -2885,9 +2901,6 @@ end.
    Abhilfe: .la Òlabel=... mu· zu Fehler fÅhren                       290596
  - Ausgabe als D64, C64 und Aufruf                                    290596
  - Starten eines Emulators/von 64NET                                  290596
- - .start-Pseudo-Opcode, um Einsprungsadresse festzulegen             300596
- - Synonyme fÅr Pseudo-Opcodes, die lÑnger als 2 Zeichen sind         300596
- - erweiterte Kommentare: {} ƒ ≥                                      300596
  - Zeichenumsetzung bei P00-Dateien nîtig: "-" wird zu "_"            010696
  - Punkt vor Strich!                                                  080796
  - End-of-Transmission! Kein Absturz des C64-Wedge-Programms          180896
@@ -2902,21 +2915,18 @@ end.
  - Transfer von 0 Bytes abfangen!                                     210597
  - Bedingtes Assemblieren mit .if                                     280597
  - Aufruf eines externen öbertragungsprogramms                        300597
- - Bugs bei Namen mit ".."                                            300597
  - Einheitlichere Kommandozeile                                       300597
  - ausfÅhrliche Hilfestellung als Overlay                             300597
  - Alle Bildschirmausgaben au·er Line ??/?? nach STDOUT               300597
- - ÅberprÅfen, wie der Assembler auf leere Makros reagiert            160897
  - alles, was nach den Makros entdeckt wird (DC, EQU) fehlt in SHOW   160897
  - jmp.l                                                              160897
  - asl a                                                              160897
- - .BR & DS > 255                                                     170897
  - $12:1234                                                           170897
  - Unterscheidung von $0002 und DP:$02 beim 65816 (siehe Seite 202)   170897
  - DC A'ASCII'                                                        170897
  - GB Z80                                                             180897
- - $ = aktuelle Position                                              180897
  - '' statt ""                                                        180897
  - #define fÅr Makros                                                 180897
  - Reassembler                                                        180897
+ - Sharewareversion:
 *)
