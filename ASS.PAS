@@ -72,6 +72,14 @@
  29.05.97  01:07:35:38 ...
            01:10:07:47 ...
            00:08:50:24 Z80-Bugfix
+ 30.05.97  00:53:17:40 Umstrukturierung,Pseudo-Statements in Makros,Z80-Makros
+           00:35:24:08 Z80: ix,iy-Register
+           00:00:45:82 Bugfix
+           00:23:48:22 Hilfestellung
+           00:13:21:45 Z80-Opcodes-Datei als EXE-Overlay
+           00:09:50:20 Verbesserung des SHOW-Modus
+           00:06:22:97 ...
+ 25.06.97  00:06:30:22 Bugfix bei Pseudo-Opcodes
 }
 
 {$G+}
@@ -140,7 +148,9 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
       PORT=$378; { LPT1 }
 
       OPCODESFILENAME='OPCODES.A18';
+      OPCODESFILENAMEZ80='OPZ80.A23';
       OPCODESFILELENGTH=5350;
+      OPCODESFILELENGTHZ80=546;
 
 type tSourceText = array[0..SOURCEMEM-1] of byte;
      numbertype = longint;
@@ -175,9 +185,11 @@ var SourceText : ^tSourceText;
     StartTime: word;
     AssemblyTime: real;
     Show: boolean;
+    PrintLine: string;
     NumberOfMnemos: byte;
     Labels: word;
     MacroLabels: word;
+    MacroError: boolean;
     actl: string;
     Pass: byte;
     unknown: boolean;
@@ -262,11 +274,6 @@ end;
 function HiHi(number: numbertype): byte;
 begin
   HiHi:=number shr 16;
-end;
-
-procedure Center(S: string);
-begin
-  GotoXY((80-Length(S)) div 2,WhereY); Writeln(S);
 end;
 
 function Right4(A: word): string;
@@ -792,18 +799,86 @@ begin
   end;
 end;
 
-function Assemble(Line: string): string;
-var actMnemo: string[3];
-    ArrayScan: word;
-    MnemoNum: word;
-    MacroNum: word;
+function Assemble(curL: string): string; forward;
+
+function AssembleMacro(Line: string): string;
+var MacroNum: word;
     Mask: string;
     ins1,ins2,ins1old,ins2old: byte;
     V: string;
     La: string;
     opaddresssaved: word;
+    a,b: string;
+begin
+  ins:=FindSeparator(Line);
+  if ins=0 then
+  begin
+    actMacroName:=Line;
+    actMacroOperand:='';
+  end else begin
+    actMacroName:=Copy(Line,1,ins-1);
+    actMacroOperand:=Copy(Line,ins+1,255);
+  end;
+  ArrayFound:=FALSE;
+  if Macros>0 then for ArrayScan:=0 to Macros-1 do
+                   begin
+                     if MacroName[ArrayScan]=actMacroName then begin MacroNum:=ArrayScan; ArrayFound:=TRUE; Break; end;
+                   end;
+  if not ArrayFound then begin MacroError:=TRUE; Exit; end;
+  { Parameter auswerten }
+  if actMacroOperand<>'' then
+  begin
+    Mask:=MacroOperand[MacroNum]+',';
+    actMacroOperand:=actMacroOperand+',';
+    MacroLabels:=0;
+    { 'redim MacroLabel$(0%:10), MacroValue??(0:10) nicht nîtig, siehe unten }
+    repeat
+      ins1:=Pos(',',actMacroOperand);
+      { instr(ins1old??,MacroOperand$,",") }
+      ins2:=Pos(',',Mask);
+      { instr(ins2old??,Mask$,",") }
+      if (ins1=0) and (ins2=0) then Break;
+      if (ins1=0) or (ins2=0) then Errorstop('Parameter error!');
+      V:=Copy(actMacroOperand,1,ins1-1);
+      { mid$(MacroOperand$,ins1old??, ins1??-ins1old??) }
+      La:=Copy(Mask,1,ins2-1);
+      { mid$(Mask$,ins2old??, ins2??-ins2old??) }
+      if La='' then Break;
+      if V='' then V:='0';
+      MacroLabel[MacroLabels]:=UpCaseStr(Trim(La));
+      MacroValue[MacroLabels]:=GetNumber(V);
+      { '? MacroLabel$(MacroLabels??);"=";MacroValue??(MacroLabels??) }
+      Inc(MacroLabels);
+      actMacroOperand:=Copy(actMacroOperand,ins1+1,255);
+      Mask:=Copy(Mask,ins2+1,255);
+    until FALSE;
+  end;
+  a:='';
+  opaddresssaved:=opaddress;
+  MacroSourceIndex:=0;
+  repeat
+    curL:=MacroReadLine(MacroNum);
+    if curL='' then Break;
+    b:=Assemble(curL);
+    a:=a+b;
+    opaddress:=opaddress+Length(a) { Speicherpos. weiterzÑhlen! }
+  until FALSE;
+  opaddress:=opaddresssaved;
+  { MakroLabels lîschen, da sie nicht mehr gelten }
+  for i:=0 to MAXMACPARA do {! nîtig? }
+  begin
+    MacroLabel[i]:='';
+    MacroValue[i]:=0;
+  end;
+  MacroLabels:=0;
+  AssembleMacro:=a; MacroError:=FALSE;
+end;
+
+function Assemble65xx(Line: string): string;
+var actMnemo: string[3];
+    ArrayScan: word;
+    MnemoNum: word;
     i: word;
-    a, b: string;
 
     addmode: byte;
     lOp: char;
@@ -822,11 +897,6 @@ var actMnemo: string[3];
     Cpos: byte;
     number, number2: numbertype;
 begin
-  if Line[Length(Line)]=COLON then { Label definieren }
-  begin
-    SetLabel(UpCaseStr(Copy(Line,1,Length(Line)-1)),opaddress);
-    Assemble:=''; Exit;
-  end;
   actMnemo:=UpCaseStr(Copy(Line,1,3));
   Operand:=Trim(Copy(Line,4,255));
   MnemoNum:=0;
@@ -836,68 +906,9 @@ begin
   end;
   if MnemoNum=0 then { vielleicht ein Makroname? }
   begin
-    ins:=FindSeparator(Line);
-    if ins=0 then
-    begin
-      actMacroName:=Line;
-      actMacroOperand:='';
-    end else begin
-      actMacroName:=Copy(Line,1,ins-1);
-      actMacroOperand:=Copy(Line,ins+1,255);
-    end;
-    ArrayFound:=FALSE;
-    if Macros>0 then for ArrayScan:=0 to Macros-1 do
-                     begin
-                       if MacroName[ArrayScan]=actMacroName then begin MacroNum:=ArrayScan; ArrayFound:=TRUE; Break; end;
-                     end;
-    if not ArrayFound then Errorstop('Unknown Mnemonic!');
-    { Parameter aufwerten }
-    if actMacroOperand<>'' then
-    begin
-      Mask:=MacroOperand[MacroNum]+',';
-      actMacroOperand:=actMacroOperand+',';
-      MacroLabels:=0;
-      { 'redim MacroLabel$(0%:10), MacroValue??(0:10) nicht nîtig, siehe unten }
-      repeat
-        ins1:=Pos(',',actMacroOperand);
-        { instr(ins1old??,MacroOperand$,",") }
-        ins2:=Pos(',',Mask);
-	{ instr(ins2old??,Mask$,",") }
-	if (ins1=0) and (ins2=0) then Break;
-	if (ins1=0) or (ins2=0) then Errorstop('Parameter error!');
-	V:=Copy(actMacroOperand,1,ins1-1);
-        { mid$(MacroOperand$,ins1old??, ins1??-ins1old??) }
-	La:=Copy(Mask,1,ins2-1);
-        { mid$(Mask$,ins2old??, ins2??-ins2old??) }
-        if La='' then Break;
-        if V='' then V:='0';
-	MacroLabel[MacroLabels]:=UpCaseStr(Trim(La));
-        MacroValue[MacroLabels]:=GetNumber(V);
-        { '? MacroLabel$(MacroLabels??);"=";MacroValue??(MacroLabels??) }
-	Inc(MacroLabels);
-        actMacroOperand:=Copy(actMacroOperand,ins1+1,255);
-        Mask:=Copy(Mask,ins2+1,255);
-      until FALSE;
-    end;
-    a:='';
-    opaddresssaved:=opaddress;
-    MacroSourceIndex:=0;
-    repeat
-      curL:=MacroReadLine(MacroNum);
-      if curL='' then Break;
-      b:=Assemble(curL);
-      a:=a+b;
-      opaddress:=opaddress+Length(a) { Speicherpos. weiterzÑhlen! }
-    until FALSE;
-    opaddress:=opaddresssaved;
-    { MakroLabels lîschen, da sie nicht mehr gelten }
-    for i:=0 to MAXMACPARA do {! nîtig? }
-    begin
-      MacroLabel[i]:='';
-      MacroValue[i]:=0;
-    end;
-    MacroLabels:=0;
-    Assemble:=a; Exit;
+    Assemble65xx:=AssembleMacro(Line);
+    if MacroError then Errorstop ('Unknown Mnemo!');
+    Exit;
   end;
 
 { Operand }
@@ -1145,7 +1156,7 @@ begin
       a:=Chr(actOpcode)+Chr(Lo(branch3))+Chr(Hi(branch3));
     end;
   end;
-  Assemble:=a;
+  Assemble65xx:=a;
 end;
 
 function ReadLine: string;
@@ -1513,7 +1524,7 @@ begin
 end;
 
 function AssembleZ80(Line: string): string;
-label AddmodeOK;
+label AddmodeOK,addprefixes,indexok;
 var ins: byte;
     Mnemo, UMnemo: string;
     Operands, UOperands, Operands2: string;
@@ -1529,23 +1540,29 @@ var ins: byte;
     number: word;
     branch: integer;
     branch2: byte;
+    Prefix, addbyte: byte;
+    addbytepresent: boolean;
 begin
-{ *** kopiert aus 65xx-Assembler *** }
-  if Line[Length(Line)]=COLON then { Label definieren }
-  begin
-    SetLabel(UpCaseStr(Copy(Line,1,Length(Line)-1)),opaddress);
-    AssembleZ80:=''; Exit;
-  end;
-{ *** kopiert aus 65xx-Assembler *** }
-
   ins:=FindSeparator(Line);
   if ins>0 then
   begin
-    Mnemo:=Copy(Line,1,ins-1);
+    Mnemo:=UpCaseStr(Copy(Line,1,ins-1));
     Operands:=Trim(Copy(Line,ins,255));
   end else begin
-    Mnemo:=Line;
+    Mnemo:=UpCaseStr(Line);
     Operands:='';
+  end;
+  MnemoNum:=0;
+  for ArrayScan:=1 to Z80MNEMOS do
+  begin
+    if (Z80Mnemo[ArrayScan]=Mnemo) then begin MnemoNum:=ArrayScan; Break; end;
+  end;
+  if (MnemoNum=0) and (Mnemo<>'LD') and (Mnemo<>'IM') and (Mnemo<>'EX')
+                  and (Mnemo<>'RST') and (Mnemo<>'IN') and (Mnemo<>'OUT') then
+  begin { vielleicht ein Makro? }
+    AssembleZ80:=AssembleMacro(Line);
+    if MacroError then Errorstop ('Unknown Mnemo!');
+    Exit;
   end;
 {
  *** 0 *** ohne Argument                                             OK!
@@ -1565,6 +1582,59 @@ begin
  *** E *** (c),B/C/D/E/H/L/A;  letztes Byte + regE                   OK!
  *** F *** BC/DE/HL/AF;  Byte + regF                                 OK?
 }
+  Prefix:=0; addbytepresent:=FALSE;
+  { ix und iy durch hl ausdrÅcken }
+  Operands2:=UpCaseStr(KillQuotes(Operands));
+  i:=Pos('(IX',Operands2); { indirektes IX }
+  if i>0 then
+  begin
+    j:=Pos(')',Copy(Operands2,i+3,255));
+    Operands2:=Copy(Operands,i+3,j-1);
+    if (Operands2[1]<>'-') and (Operands2[1]<>'+') then Errorstop('+/- required!');
+    number:=Getnumber(Copy(Operands2,2,255));
+    if Pass=2 then
+    begin
+      if number>255 then Errorstop('8 Bit!');
+      if Operands2[1]='-' then number:=256-number;
+    end;
+    prefix:=$DD;
+    addbyte:=number; addbytepresent:=TRUE;
+    Operands:=Copy(Operands,1,i)+'HL'+Copy(Operands,i+j+2,255);
+    goto indexok;
+  end;
+  i:=Pos('(IY',Operands2); { indirektes IY }
+  if i>0 then
+  begin
+    j:=Pos(')',Copy(Operands2,i+3,255));
+    Operands2:=Copy(Operands,i+3,i+j-4);
+    if (Operands2[1]<>'-') and (Operands2[1]<>'+') then Errorstop('+/- required!');
+    number:=Getnumber(Copy(Operands2,2,255));
+    if Pass=2 then
+    begin
+      if number>255 then Errorstop('8 Bit!');
+      if Operands2[1]='-' then number:=256-number;
+    end;
+    prefix:=$FD;
+    addbyte:=number; addbytepresent:=TRUE;
+    Operands:=Copy(Operands,1,i)+'HL'+Copy(Operands,i+j+2,255);
+    goto indexok;
+  end;
+  i:=Pos('IX',Operands2); { direktes IX }
+  if i>0 then
+  begin
+    Operands:=Copy(Operands,1,i-1)+'HL'+Copy(Operands,i+2,255);
+    prefix:=$DD
+  end;
+  i:=Pos('IY',Operands2); { direktes IY }
+  if i>0 then
+  begin
+    Operands:=Copy(Operands,1,i-1)+'HL'+Copy(Operands,i+2,255);
+    prefix:=$FD
+  end;
+
+
+
+indexok:
   { Besondere Mnemos }
   UMnemo:=UpCaseStr(Mnemo); UOperands:=UpCaseStr(Operands);
   if UMnemo='LD' then { ld }
@@ -1587,80 +1657,80 @@ begin
     if (reg81<>$FF) and (reg82<>$FF) then { reg8,reg8 }
     begin
       if (reg81=6) and (reg82=6) then Errorstop('Invalid combination: LD (HL),(HL)');
-      AssembleZ80:=Chr($40+reg81*8+reg82); Exit;
+      a:=Chr($40+reg81*8+reg82); goto addprefixes;
     end;
     if reg81=7 then { a,... }
     begin
-      if UOp2='(BC)' then begin AssembleZ80:=Chr($0A); Exit; end;
-      if UOp2='(DE)' then begin AssembleZ80:=Chr($1A); Exit; end;
-      if UOp2='I' then begin AssembleZ80:=Chr($ED)+Chr($57); Exit; end;
-      if UOp2='R' then begin AssembleZ80:=Chr($ED)+Chr($5F); Exit; end;
+      if UOp2='(BC)' then begin a:=Chr($0A); goto addprefixes; end;
+      if UOp2='(DE)' then begin a:=Chr($1A); goto addprefixes; end;
+      if UOp2='I' then begin a:=Chr($ED)+Chr($57); goto addprefixes; end;
+      if UOp2='R' then begin a:=Chr($ED)+Chr($5F); goto addprefixes; end;
       if (UOp2[1]='(') and (UOp2[Length(UOp2)]=')') then
       begin
         number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
         if Pass=1 then
-          AssembleZ80:='   '
+          a:='   '
         else
-          AssembleZ80:=Chr($3A)+Chr(lo(number))+Chr(hi(number));
-        Exit;
+          a:=Chr($3A)+Chr(lo(number))+Chr(hi(number));
+        goto addprefixes;
       end;
     end;
     if reg82=7 then { ...,a }
     begin
-      if UOp1='(BC)' then begin AssembleZ80:=Chr($02); Exit; end;
-      if UOp1='(DE)' then begin AssembleZ80:=Chr($12); Exit; end;
-      if UOp1='I' then begin AssembleZ80:=Chr($ED)+Chr($47); Exit; end;
-      if UOp1='R' then begin AssembleZ80:=Chr($ED)+Chr($4F); Exit; end;
+      if UOp1='(BC)' then begin a:=Chr($02); goto addprefixes; end;
+      if UOp1='(DE)' then begin a:=Chr($12); goto addprefixes; end;
+      if UOp1='I' then begin a:=Chr($ED)+Chr($47); goto addprefixes; end;
+      if UOp1='R' then begin a:=Chr($ED)+Chr($4F); goto addprefixes; end;
       if (UOp1[1]='(') and (UOp1[Length(UOp1)]=')') then
       begin
         number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
         if Pass=1 then
-          AssembleZ80:='   '
+          a:='   '
         else
-          AssembleZ80:=Chr($32)+Chr(lo(number))+Chr(hi(number));
-        Exit;
+          a:=Chr($32)+Chr(lo(number))+Chr(hi(number));
+        goto addprefixes;
       end;
     end;
     if (UOp1[1]='(') and (UOp1[Length(UOp1)]=')') then
     begin
       if UOp2='BC' then begin number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
-                              AssembleZ80:=Chr($ED)+Chr($43)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+                              a:=Chr($ED)+Chr($43)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
       if UOp2='DE' then begin number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
-                              AssembleZ80:=Chr($ED)+Chr($53)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+                              a:=Chr($ED)+Chr($53)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
       if UOp2='HL' then begin number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
-                              AssembleZ80:=Chr($22)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+                              a:=Chr($22)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
       if UOp2='SP' then begin number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
-                              AssembleZ80:=Chr($ED)+Chr($73)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+                              a:=Chr($ED)+Chr($73)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
     end;
     if (UOp2[1]='(') and (UOp2[Length(UOp2)]=')') then
     begin
       if UOp1='BC' then begin number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
-                              AssembleZ80:=Chr($ED)+Chr($4B)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+                              a:=Chr($ED)+Chr($4B)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
       if UOp1='DE' then begin number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
-                              AssembleZ80:=Chr($ED)+Chr($5B)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+                              a:=Chr($ED)+Chr($5B)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
       if UOp1='HL' then begin number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
-                              AssembleZ80:=Chr($2A)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+                              a:=Chr($2A)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
       if UOp1='SP' then begin number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
-                              AssembleZ80:=Chr($ED)+Chr($7B)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+                              a:=Chr($ED)+Chr($7B)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
     end;
     number:=Getnumber(Op2);
     if reg81<>$FF then
     begin
       if (Pass=2) and (number>255) then Errorstop('8 Bit!');
-      AssembleZ80:=Chr($06+reg81*8)+Chr(number);
-      Exit;
+      a:=Chr($06+reg81*8)+Chr(number);
+      goto addprefixes;
     end;
-    if UOp1='BC' then begin AssembleZ80:=Chr($01)+Chr(lo(number))+Chr(hi(number)); Exit; end;
-    if UOp1='DE' then begin AssembleZ80:=Chr($11)+Chr(lo(number))+Chr(hi(number)); Exit; end;
-    if UOp1='HL' then begin AssembleZ80:=Chr($21)+Chr(lo(number))+Chr(hi(number)); Exit; end;
-    if UOp1='SP' then begin AssembleZ80:=Chr($31)+Chr(lo(number))+Chr(hi(number)); Exit; end;
+    if UOp1='BC' then begin a:=Chr($01)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
+    if UOp1='DE' then begin a:=Chr($11)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
+    if UOp1='HL' then begin a:=Chr($21)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
+    if UOp1='SP' then begin a:=Chr($31)+Chr(lo(number))+Chr(hi(number)); goto addprefixes; end;
   end;
-  if (UMnemo='JP') and (UOperands='(HL)') then begin AssembleZ80:=Chr($E9); Exit; end;
+  if (UMnemo='JP') and (UOperands='(HL)') then begin a:=Chr($E9); goto addprefixes; end;
   if UMnemo='IM' then
   begin
-    if Operands='0' then begin AssembleZ80:=Chr($ED)+Chr($46); Exit; end;
-    if Operands='1' then begin AssembleZ80:=Chr($ED)+Chr($56); Exit; end;
-    if Operands='2' then begin AssembleZ80:=Chr($ED)+Chr($5E); Exit; end;
+    if Operands='0' then begin a:=Chr($ED)+Chr($46); goto addprefixes; end;
+    if Operands='1' then begin a:=Chr($ED)+Chr($56); goto addprefixes; end;
+    if Operands='2' then begin a:=Chr($ED)+Chr($5E); goto addprefixes; end;
     Errorstop('Syntax: IM 0/1/2');
   end;
   if UMnemo='EX' then
@@ -1670,16 +1740,16 @@ begin
     Op1:=Trim(Copy(Operands,1,i-1));
     Op2:=Trim(Copy(Operands,i+1,255));
     UOp1:=UpCaseStr(Op1); UOp2:=UpCaseStr(Op2);
-    if (UOp1='(SP)') and (UOp2='HL') then begin AssembleZ80:=Chr($E3); Exit; end;
-    if (UOp1='AF') and (UOp2='AF''') then begin AssembleZ80:=Chr($08); Exit; end;
-    if (UOp1='DE') and (UOp2='HL') then begin AssembleZ80:=Chr($EB); Exit; end;
+    if (UOp1='(SP)') and (UOp2='HL') then begin a:=Chr($E3); goto addprefixes; end;
+    if (UOp1='AF') and (UOp2='AF''') then begin a:=Chr($08); goto addprefixes; end;
+    if (UOp1='DE') and (UOp2='HL') then begin a:=Chr($EB); goto addprefixes; end;
   end;
   if UMnemo='RST' then
   begin
     number:=Getnumber(Operands);
     if (number and 7>0) or (number>$38) then Errorstop('Syntax: RST 0/8/10/18/20/28/30/38');
-    AssembleZ80:=Chr($C7+number);
-    Exit;
+    a:=Chr($C7+number);
+    goto addprefixes;
   end;
   if UMnemo='IN' then
   begin
@@ -1693,8 +1763,8 @@ begin
       begin
         number:=Getnumber(Copy(Op2,2,Length(Op2)-2));
         if number>255 then Errorstop('8 Bit!');
-        AssembleZ80:=Chr($DB)+Chr(number);
-        Exit;
+        a:=Chr($DB)+Chr(number);
+        goto addprefixes;
       end;
     end;
   end;
@@ -1710,8 +1780,8 @@ begin
       begin
         number:=Getnumber(Copy(Op1,2,Length(Op1)-2));
         if number>255 then Errorstop('8 Bit!');
-        AssembleZ80:=Chr($D3)+Chr(number);
-        Exit;
+        a:=Chr($D3)+Chr(number);
+        goto addprefixes;
       end;
     end;
   end;
@@ -1882,7 +1952,7 @@ AddmodeOK:
       reg816:=Z80REGCONV2[reg162];
       if reg816<>$FF then goto AddmodeOK; { sonst schlug Reg.-Konv. fehl }
     end;
-    Errorstop('Unknown Mnemonic/Addressing Mode! (Z80)');
+    Errorstop('Unknown Addressing Mode');
   end;
   Op:=Z80Opcode[MnemoNum];
   if Op>255 then a:=Chr(Op and 255)+Chr(Op shr 8) else a:=Chr(Op);
@@ -1989,31 +2059,235 @@ AddmodeOK:
       a[Length(a)]:=Chr(Ord(a[Length(a)])+reg162*$10);
     end;
   end;
+addprefixes:
+  if ((Mnemo='ADC') or (Mnemo='SBC')) and (prefix>0) and (addbytepresent=FALSE) then Errorstop('ix/iy not allowed here!');
+  if (a=Chr($EB)) and (prefix>0) then Errorstop('ix/iy not allowed here!'); { der Teufel wei·, warum }
+  if prefix>0 then a:=Chr(prefix)+a;
+  if addbytepresent then a:=a+Chr(addbyte);
   AssembleZ80:=a;
-{
- *** 0 *** ohne Argument                                             OK!
- *** 1 *** A, B/C/D/E/H/L/(HL)/A;  Byte + regA                       OK!
- *** 2 *** A, n                                                      OK!
- *** 3 *** HL, BC/DE/HL/SP;  letztes Byte + regC                     OK!
- *** 4 *** B/C/D/E/H/L/(HL)/A;  letztes Byte + regA                  OK?
- *** 5 *** n                                                         -
- *** 6 *** B/BC/C/D/DE/E/H/HL/L/(HL)/SP/A;  Byte + regD              OK!
- *** 7 *** x, B/C/D/E/H/L/(HL)/A;  letztes Byte + (x*8) + regA       OK!
- *** 8 *** nn                                                        OK?
- *** 9 *** nn; Umsetzung nach relativ!                               -
- *** A *** cond, nn;  Byte + cond                                    OK!
- *** B *** cond, nn;  Byte + cond; Umsetzung nach relativ!           -
- *** C *** cond;  Byte + cond                                        OK!
- *** D *** B/C/D/E/H/L/A,(c);  letztes Byte + regE                   OK!
- *** E *** (c),B/C/D/E/H/L/A;  letztes Byte + regE                   OK!
- *** F *** BC/DE/HL/AF;  Byte + regF                                 OK?
-}
 end;
 
+function Assemble(curL: string): string;
+label codeok;
+begin
+  a:='';
+  if curL[1]='.' then { Pseudo-Opcode }
+  begin
+    curL:=Copy(curL,2,255);
+    ins:=FindSeparator(curL);
+    if ins>0 then
+    begin
+      Pseudo:=Copy(curL,1,ins-1);
+      Operand:=Trim(Copy(CurL,ins,255));
+    end else begin
+      Pseudo:=curL; Operand:='';
+    end;
+    Pseudo:=UpCaseStr(Copy(Pseudo,1,2));
+    PseudoOK:=FALSE;
+    if Pseudo='RL' then { Index-Register auf 16 Bit }
+    begin
+      if Cpu<>2 then Errorstop('Only supported by 65802/65816!');
+      PseudoOK:=TRUE;
+      SizeIndex:=TRUE;
+    end;
+    if Pseudo='RS' then { Index-Register auf 8 Bit }
+    begin
+      PseudoOK:=TRUE;
+      SizeIndex:=FALSE;
+    end;
+    if Pseudo='AL' then { Akku auf 16 Bit }
+    begin
+      if Cpu<>2 then Errorstop('Only supported by 65802/65816!');
+      PseudoOK:=TRUE;
+      SizeAccu:=TRUE;
+    end;
+    if Pseudo='AS' then { Akku auf 8 Bit }
+    begin
+      PseudoOK:=TRUE;
+      SizeAccu:=FALSE;
+    end;
+    if Pseudo='CP' then { .CPU }
+    begin
+      PseudoOK:=TRUE;
+      CpuIllegal:=FALSE;
+      if Operand='6502' then begin Cpu:=0; PseudoOK:=TRUE; end;
+      if Copy(UpCaseStr(Operand),1,7)='6502ILL' then begin Cpu:=1; CpuIllegal:=TRUE; PseudoOK:=TRUE; end;
+      if UpCaseStr(Operand)='65C02' then begin Cpu:=1; PseudoOK:=TRUE; end;
+      if (Operand='65816') or (Operand='65802') then begin Cpu:=2; PseudoOK:=TRUE; end;
+      if UpCaseStr(Operand)='Z80' then begin Cpu:=80; PseudoOK:=TRUE; end;
+      if not PseudoOK then Errorstop('Supported CPUs: 6502,6502ILL,65C02,65802/65816/Z80!');
+    end;
+    if Pseudo='PE' then begin AsciiFlag:=0; PseudoOK:=TRUE; end;
+    if Pseudo='AS' then begin AsciiFlag:=1; PseudoOk:=TRUE; end;
+    if Pseudo='BA' then
+    begin
+      PseudoOK:=TRUE;
+      unknown:=FALSE;
+      number:=GetNumber(Operand);
+      if unknown=TRUE then Errorstop('Base has to be a constant!');
+      if basedefined then
+      begin
+        if number<opaddress then Errorstop('Base error!');
+        if Pass=2 then Inc(ocodeIndex,number-opaddress);
+        if ocodeIndex>MAXOCODE then Errorstop('Object code overflow!');
+      end else begin
+        startaddress:=number;
+      end;
+      opaddress:=number;
+      basedefined:=TRUE;
+    end;
+    if Pseudo='BR' then
+    begin
+      PseudoOK:=TRUE;
+      ins:=Pos(',',Operand);
+      if ins=0 then Errorstop('At least two operands required!');
+      if Pos(',',Copy(Operand,ins+1,255))>0 then Errorstop('Too many operands!');
+      unknown:=FALSE;
+      times:=GetNumber(Copy(Operand,1,ins-1));
+      if unknown then Errorstop('Repeat number has to be a constant!');
+      unknown:=FALSE;
+      number:=GetNumber(Copy(Operand,ins+1,255));
+      if unknown then number:=0;
+      if number>256 then Errorstop('Byte > 8 Bit!');
+      a:='';
+      for i:=1 to times do a:=a+Chr(number);
+    end;
+    if Pseudo='BY' then
+    begin
+      PseudoOK:=TRUE;
+      insold:=1;
+      Operand:=Operand+',';
+      a:='';
+      repeat
+        ins:=Pos(',',Copy(Operand,insold,255));
+        if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
+        unknown:=FALSE;
+        number:=GetNumber(Copy(Operand,insold,ins-1));
+        if unknown then number:=0;
+        if number>256 then Errorstop('Byte > 8 Bit!');
+        a:=a+Chr(number);
+        insold:=insold+ins;
+      until FALSE;
+    end;
+    if Pseudo='LA' then
+    begin
+      PseudoOK:=TRUE;
+      ins:=Pos('=',Operand);
+      if ins=0 then Errorstop('"=" expected');
+      unknown:=FALSE;
+      number:=GetNumber(Copy(Operand,ins+1,255));
+      if unknown=FALSE then SetLabel(UpCaseStr(Copy(Operand,1,ins-1)), number);
+      { wenn Value nicht bekannt, Zuweisung ignorieren }
+    end;
+    if Pseudo='TX' then
+    begin
+      PseudoOK:=TRUE;
+      if Operand[1]<>QUOTE then ErrorStop('Quote expected!');
+      a:=Copy(Operand,2,255);
+      if a[Length(a)]=QUOTE then a[0]:=Chr(Length(a)-1);
+      { nach Petscii {!Bug in ASS16.BAS?}
+      if (AsciiFlag=0) and (Pass=2) then a:=SPetscii(a);
+    end;
+    if Pseudo='TS' then { Screencode }
+    begin
+      PseudoOK:=TRUE;
+      if Operand[1]<>QUOTE then ErrorStop('Quote expected!');
+      a:=Copy(Operand,2,255);
+      if a[Length(a)]=QUOTE then a[0]:=Chr(Length(a)-1);
+      a:=SPetscii(a);
+      a:=SScrCode(a);
+    end;
+    if Pseudo='WO' then
+    begin
+      PseudoOK:=TRUE;
+      insold:=1;
+      Operand:=Operand+',';
+      a:='';
+      repeat
+        ins:=Pos(',',Copy(Operand,insold,255));
+        if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
+        unknown:=FALSE;
+        number:=GetNumber(Copy(Operand,insold,ins-1));
+        if unknown then number:=0;
+        a:=a+Chr(Lo(number))+Chr(Hi(number));
+        insold:=insold+ins;
+      until FALSE;
+    end;
+    if Pseudo='MA' then { macro }
+    begin
+      PseudoOK:=TRUE;
+      if Pass=1 then
+      begin
+        ins:=FindSeparator(Operand);
+        if ins=0 then
+        begin
+          actMacroName:=Operand;
+          actMacroOperand:='';
+        end else begin
+          actMacroName:=Copy(Operand,1,ins-1);
+          actMacroOperand:=Copy(Operand,ins+1,255);
+        end;
+        ArrayFound:=FALSE;
+        if Macros>0 then for ArrayScan:=0 to Macros do
+                         begin
+                           if MacroName[ArrayScan]=actMacroName then begin help:=ArrayScan; ArrayFound:=TRUE; Break; end;
+                         end;
+        if ArrayFound then Errorstop('Macro already defined!');
+	MacroName[Macros]:=actMacroName;
+        MacroOperand[Macros]:=actMacroOperand;
+	Inc(i);
+        MacroSourceIndex:=0;
+        repeat
+          CurL:=ReadLine;
+          if CurL='' then Errorstop('End of macro expected!');
+          if UpCaseStr(Copy(CurL,1,3))='.EN' then Break;
+          { Zeile in Makro-Quelltext kopieren }
+          Move(Ptr(Seg(CurL),Ofs(CurL)+1)^,
+               Ptr(Seg(MacroSourceText[Macros]),
+               Ofs(MacroSourceText[Macros])+MacroSourceIndex)^,
+               Length(CurL));
+          Inc(MacroSourceIndex,Length(CurL)+1);
+          MacroSourceText[Macros,SourceIndex-1]:=0;
+          Inc(i);
+        until FALSE;
+        MacroSourceEnd[Macros]:=MacroSourceIndex;
+        Inc(Macros);
+      end else begin { im Pass 2 Åberspringen }
+        Inc(i);
+        repeat
+        if UpCaseStr(Copy(ReadLine,1,3))='.EN' then Break;
+        Inc(i);
+      until FALSE;
+      end;
+    end;
+    if Pseudo='EN' then { unerlaubtes Makro-Ende }
+    begin
+      Errorstop('No macro to end!');
+    end;
+    if Pseudo='LO' then
+    begin
+      if Operand='' then Errorstop('Filename required');
+      if Operand[1]='"' then Operand:=Copy(Operand,2,255);
+      if Operand[Length(Operand)]='"' then Operand[0]:=Chr(Length(Operand)-1);
+      if Length(Loads)+Length(Operand)>254 then Errorstop('Too many files to load');
+      if Pass=2 then Loads:=Loads+Operand+#0;
+      PseudoOK:=TRUE;
+    end;
+    if not PseudoOK then Errorstop('Unknown pseudo opcode!');
+    goto codeok;
+  end;
+  if curL[Length(curL)]=COLON then { Label definieren }
+  begin
+    SetLabel(UpCaseStr(Copy(curL,1,Length(curL)-1)),opaddress);
+    Assemble:=''; Exit;
+  end;
+  if CPU=80 then a:=AssembleZ80(curL) else a:=Assemble65xx(curL);
+codeok:
+  Assemble:=a;
+end;
 
 { Main }
 
-label codeok;
 begin
   COPYRIGHT1; COPYRIGHT2; { nur Dummies }
   InitPort;
@@ -2023,7 +2297,10 @@ begin
 
   { Co:=Environ$("6502")+" "+Command$+" " }
 
-  ClrScr; Writeln; Center('6502-X-Assembler'); Center('(C)1997 MIST'); Writeln;
+  Writeln;
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.24    05-30-97');
+  Writeln('Copr. 1995-1997 Michael Steil. All rights reserved. Beta version.');
+  Writeln;
 
   ASSDirectory:=ParamStr(0);
   i:=Length(ASSDirectory);
@@ -2072,7 +2349,34 @@ begin
   end;
 
   if Transfer=128 then begin Writeln('No transfer cable specified!'); Halt; end;
-  if ParameterFile='' then begin Writeln('No filename specified!'); Halt; end;
+  if ParameterFile='' then
+  begin
+    Writeln('Usage:  MXASS [-options] filename[.ASM]'); Writeln;
+    Writeln('Valid options: (*) = default');
+    Writeln('  -64net     The object code will be transferred to a C64 via the 64NET cable');
+    Writeln('  -pc64      The object code will be transferred to a C64 via the PC64 cable');
+    Writeln('  -transfer- The object code will not be transferred to a C64 (*)');
+    Writeln('  -start     The program will be started on the C64 after transfer');
+    Writeln('  -start-    The program will not be started on the C64 after transfer (*)');
+    Writeln('  -ocode     The object code will be written to disk as a binary file with the');
+    Writeln('             extention .OBJ');
+    Writeln('  -prg       The object code will be written to disk as a binary file with the');
+    Writeln('             extention .PRG containing the load address at the beginning');
+    Writeln('  -p00       The object code will be written to disk as a Personal C64 P00-file');
+    Writeln('  -n64       The object code will be written to disk as a 64NET N64-file');
+{    Writeln('  -d64       The object code will be written to disk as a D64-file as used by');
+    Writeln('             several emulators');
+    Writeln('  -t64       The object code will be written to disk as a C64S T64-file');
+    Writeln('  -c64       The object code will be written to disk as a Personal C64 C64-file');}
+    Writeln('  -show      Every line being assembled will be shown on the screen');
+    Writeln('  -show-     Quiet mode (*)');
+    Writeln('  -sym       The program symbols will be written to disk as a text file with');
+    Writeln('             the extention .SYM');
+    Writeln('  -sym-      The program symbols will not be written to disk (*)');
+
+
+    Halt;
+  end;
   ins:=Pos('.',ParameterFile);
   if ins>0 then begin
     Filename:=Copy(ParameterFile,1,ins);
@@ -2081,7 +2385,31 @@ begin
     ParameterFile:=ParameterFile+'.ASM';
   end;
 
-  { Opcodes einlesen }
+  { Z80-Opcodes einlesen }
+  Assign(OpcodesFile,OPCODESFILENAMEZ80);   { existiert separate Datei?    }
+  {$I-} Reset(OpcodesFile,1); {$I+}
+  if IOResult>0 then                     { nein, dann aus EXE-Overlay   }
+  begin                                  { laden (funktioniert nicht in }
+    Assign(OpcodesFile,ParamStr(0));     { der Entwicklungsumgebung!)   }
+    {$I-} Reset(OpcodesFile,1); {$I+}
+    if IOResult>0 then
+    begin
+      Writeln('MXASS.EXE is corrupt!');
+      Halt;
+    end;
+    Seek(OpcodesFile,FileSize(OpcodesFile)-OPCODESFILELENGTH-OPCODESFILELENGTHZ80);
+  end;
+  for i:=1 to Z80MNEMOS do
+  begin
+    BlockRead(OpcodesFile,Ptr(Seg(Z80Mnemo[i]),Ofs(Z80Mnemo[i])+1)^,4);
+    BlockRead(OpcodesFile,Z80Addmode[i],1);
+    BlockRead(OpcodesFile,Z80Opcode[i],2);
+    Z80Mnemo[i][0]:=#4;
+    while Z80Mnemo[i][Length(Z80Mnemo[i])]=' ' do Z80Mnemo[i][0]:=Chr(Ord(Z80Mnemo[i][0])-1)
+  end;
+  Close(OpcodesFile);
+
+  { 65xx-Opcodes einlesen }
   Assign(OpcodesFile,OPCODESFILENAME);   { existiert separate Datei?    }
   {$I-} Reset(OpcodesFile,1); {$I+}
   if IOResult>0 then                     { nein, dann aus EXE-Overlay   }
@@ -2090,7 +2418,7 @@ begin
     {$I-} Reset(OpcodesFile,1); {$I+}
     if IOResult>0 then
     begin
-      Writeln('Opcodes table not found!');
+      Writeln('MXASS.EXE is corrupt!');
       Halt;
     end;
     Seek(OpcodesFile,FileSize(OpcodesFile)-OPCODESFILELENGTH);
@@ -2109,18 +2437,6 @@ begin
   until Eof(OpcodesFile);
   Close(OpcodesFile);
 
-  { Z80-Opcodes einlesen }
-  Assign(OpcodesFile,'OPZ80.A23'); Reset(OpcodesFile,1);
-  for i:=1 to Z80MNEMOS do
-  begin
-    BlockRead(OpcodesFile,Ptr(Seg(Z80Mnemo[i]),Ofs(Z80Mnemo[i])+1)^,4);
-    BlockRead(OpcodesFile,Z80Addmode[i],1);
-    BlockRead(OpcodesFile,Z80Opcode[i],2);
-    Z80Mnemo[i][0]:=#4;
-    while Z80Mnemo[i][Length(Z80Mnemo[i])]=' ' do Z80Mnemo[i][0]:=Chr(Ord(Z80Mnemo[i][0])-1)
-{    if Z80Mnemo[i][4]=' ' then Z80Mnemo[i][0]:=#3 else Z80Mnemo[i][0]:=#4;}
-  end;
-  Close(OpcodesFile);
 
 
   Writeln(' *** Reading sourcecode ',QUOTE,UpCaseStr(ParameterFile),QUOTE);
@@ -2145,226 +2461,12 @@ begin
       currentline:=reallinenumber[i];
       curL:=ReadLine; if curL='' then Break;
       Inc(i);
-      if ((i and 63)=0) or (i=lines-1) then
+      if ((i and 63)=0) and ((Pass<>2) or (SHOW=FALSE)) then
       begin
         GotoXY(6,WhereY-1); Writeln(Right4(currentline));
       end;
-      if curL[1]='.' then { Pseudo-Opcode }
-      begin
-        curL:=Copy(curL,2,255);
-        ins:=FindSeparator(curL);
-        if ins>0 then
-        begin
-          Pseudo:=Copy(curL,1,ins-1);
-          Operand:=Trim(Copy(CurL,ins,255));
-        end else begin
-          Pseudo:=curL; Operand:='';
-        end;
-        Pseudo:=UpCaseStr(Copy(Pseudo,1,2));
-        PseudoOK:=FALSE;
-        if Pseudo='RL' then { Index-Register auf 16 Bit }
-        begin
-          if Cpu<>2 then Errorstop('Only supported by 65816!');
-          PseudoOK:=TRUE;
-          SizeIndex:=TRUE;
-        end;
-        if Pseudo='RS' then { Index-Register auf 8 Bit }
-        begin
-          PseudoOK:=TRUE;
-          SizeIndex:=FALSE;
-        end;
-        if Pseudo='AL' then { Akku auf 16 Bit }
-        begin
-          if Cpu<>2 then Errorstop('Only supported by 65816!');
-          PseudoOK:=TRUE;
-          SizeAccu:=TRUE;
-        end;
-        if Pseudo='AS' then { Akku auf 8 Bit }
-        begin
-          PseudoOK:=TRUE;
-          SizeAccu:=FALSE;
-        end;
-        if Pseudo='CP' then { .CPU }
-        begin
-          PseudoOK:=TRUE;
-          CpuIllegal:=FALSE;
-          if Operand='6502' then Cpu:=0;
-          if Copy(UpCaseStr(Operand),1,7)='6502ILL' then begin Cpu:=1; CpuIllegal:=TRUE; end;
-          if UpCaseStr(Operand)='65C02' then Cpu:=1;
-          if (Operand='65816') or (Operand='65802') then Cpu:=2;
-        end;
-        if Pseudo='PE' then begin AsciiFlag:=0; PseudoOK:=TRUE; end;
-        if Pseudo='AS' then begin AsciiFlag:=1; PseudoOk:=TRUE; end;
-        if Pseudo='BA' then
-        begin
-          PseudoOK:=TRUE;
-          unknown:=FALSE;
-          number:=GetNumber(Operand);
-          if unknown=TRUE then Errorstop('Base has to be a constant!');
-          if basedefined then
-          begin
-            if number<opaddress then Errorstop('Base error!');
- 	    if Pass=2 then Inc(ocodeIndex,number-opaddress);
-            if ocodeIndex>MAXOCODE then Errorstop('Object code overflow!');
-          end else begin
-            startaddress:=number;
-          end;
-          opaddress:=number;
-          basedefined:=TRUE;
-        end;
-        if Pseudo='BR' then
-        begin
-          PseudoOK:=TRUE;
-          ins:=Pos(',',Operand);
- 	  if ins=0 then Errorstop('At least two operands required!');
-          if Pos(',',Copy(Operand,ins+1,255))>0 then Errorstop('Too many operands!');
-          unknown:=FALSE;
-  	  times:=GetNumber(Copy(Operand,1,ins-1));
-          if unknown then Errorstop('Repeat number has to be a constant!');
-          unknown:=FALSE;
- 	  number:=GetNumber(Copy(Operand,ins+1,255));
-          if unknown then number:=0;
- 	  if number>256 then Errorstop('Byte > 8 Bit!');
-          a:='';
-          for i:=1 to times do a:=a+Chr(number);
- 	  goto codeok
-        end;
-        if Pseudo='BY' then
-        begin
-          PseudoOK:=TRUE;
-          insold:=1;
-          Operand:=Operand+',';
-          a:='';
- 	  repeat
-            ins:=Pos(',',Copy(Operand,insold,255));
-            if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
-            unknown:=FALSE;
-            number:=GetNumber(Copy(Operand,insold,ins-1));
-            if unknown then number:=0;
-            if number>256 then Errorstop('Byte > 8 Bit!');
-            a:=a+Chr(number);
-            insold:=insold+ins;
-          until FALSE;
-          goto codeok
-        end;
-        if Pseudo='LA' then
-        begin
-          PseudoOK:=TRUE;
-          ins:=Pos('=',Operand);
-          if ins=0 then Errorstop('"=" expected');
-          unknown:=FALSE;
-          number:=GetNumber(Copy(Operand,ins+1,255));
-          if unknown=FALSE then SetLabel(UpCaseStr(Copy(Operand,1,ins-1)), number);
-          { wenn Value nicht bekannt, Zuweisung ignorieren }
-        end;
-        if Pseudo='TX' then
-        begin
-          PseudoOK:=TRUE;
-          if Operand[1]<>QUOTE then ErrorStop('Quote expected!');
-          a:=Copy(Operand,2,255);
-          if a[Length(a)]=QUOTE then a[0]:=Chr(Length(a)-1);
-          { nach Petscii {!Bug in ASS16.BAS?}
-          if (AsciiFlag=0) and (Pass=2) then a:=SPetscii(a);
-          goto codeok;
-        end;
-        if Pseudo='TS' then { Screencode }
-        begin
-          PseudoOK:=TRUE;
-          if Operand[1]<>QUOTE then ErrorStop('Quote expected!');
-          a:=Copy(Operand,2,255);
-          if a[Length(a)]=QUOTE then a[0]:=Chr(Length(a)-1);
-          a:=SPetscii(a);
-          a:=SScrCode(a);
-          goto codeok;
-        end;
-        if Pseudo='WO' then
-        begin
-          PseudoOK:=TRUE;
-          insold:=1;
-          Operand:=Operand+',';
-          a:='';
-          repeat
-            ins:=Pos(',',Copy(Operand,insold,255));
- 	    if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
-            unknown:=FALSE;
-            number:=GetNumber(Copy(Operand,insold,ins-1));
-            if unknown then number:=0;
-            a:=a+Chr(Lo(number))+Chr(Hi(number));
-            insold:=insold+ins;
-          until FALSE;
-          goto codeok
-        end;
-        if Pseudo='MA' then { macro }
-        begin
-          PseudoOK:=TRUE;
-          if Pass=1 then
-          begin
-            ins:=FindSeparator(Operand);
-            if ins=0 then
-            begin
-	      actMacroName:=Operand;
-	      actMacroOperand:='';
- 	    end else begin
-	      actMacroName:=Copy(Operand,1,ins-1);
-	      actMacroOperand:=Copy(Operand,ins+1,255);
-            end;
-            ArrayFound:=FALSE;
-	    if Macros>0 then for ArrayScan:=0 to Macros do
-                             begin
-                               if MacroName[ArrayScan]=actMacroName then begin help:=ArrayScan; ArrayFound:=TRUE; Break; end;
-                             end;
-	    if ArrayFound then Errorstop('Macro already defined!');
-	    MacroName[Macros]:=actMacroName;
-            MacroOperand[Macros]:=actMacroOperand;
-	    Inc(i);
-            MacroSourceIndex:=0;
-	    repeat
-	      CurL:=ReadLine;
-              if CurL='' then Errorstop('End of macro expected!');
-	      if UpCaseStr(Copy(CurL,1,3))='.EN' then Break;
-              { Zeile in Makro-Quelltext kopieren }
-              Move(Ptr(Seg(CurL),Ofs(CurL)+1)^,
-                   Ptr(Seg(MacroSourceText[Macros]),
-                   Ofs(MacroSourceText[Macros])+MacroSourceIndex)^,
-                   Length(CurL));
-              Inc(MacroSourceIndex,Length(CurL)+1);
-              MacroSourceText[Macros,SourceIndex-1]:=0;
-	      Inc(i);
-	    until FALSE;
-            MacroSourceEnd[Macros]:=MacroSourceIndex;
-	    Inc(Macros);
-          end else begin { im Pass 2 Åberspringen }
-  	    Inc(i);
- 	    repeat
-	      if UpCaseStr(Copy(ReadLine,1,3))='.EN' then Break;
-	      Inc(i);
-	    until FALSE;
-          end;
-        end;
-        if Pseudo='EN' then { unerlaubtes Makro-Ende }
-        begin
-          Errorstop('No macro to end!');
-        end;
-        if Pseudo='LO' then
-        begin
-          if Operand='' then Errorstop('Filename required');
-          if Operand[1]='"' then Operand:=Copy(Operand,2,255);
-          if Operand[Length(Operand)]='"' then Operand[0]:=Chr(Length(Operand)-1);
-          if Length(Loads)+Length(Operand)>254 then Errorstop('Too many files to load');
-          if Pass=2 then Loads:=Loads+Operand+#0;
-          PseudoOK:=TRUE;
-        end;
-        if Pseudo='Z8' then { .Z80 }
-        begin
-          CPU:=80;
-          PseudoOK:=TRUE;
-        end;
-        if not PseudoOK then Errorstop('Unknown pseudo opcode!');
-        Continue;
-      end;
-      if CPU=80 then a:=AssembleZ80(curL) else a:=Assemble(curL);
-codeok:
-      if not basedefined then Errorstop('Base missing!');
+      a:=Assemble(curL);
+      if (Length(a)>0) and (not basedefined) then Errorstop('Base missing!');
       if Pass=2 then
       begin
         if ocodeIndex+Length(a)>MAXOCODE then Errorstop('Object code overflow!');
@@ -2374,16 +2476,17 @@ codeok:
       Inc(Opaddress, Length(a));
       if (Show=TRUE) and (Pass=2) then
       begin
-        GotoXY(1,WhereY-1);
-        Write(Hex(oldopaddress,4),' ');
-        if a<>'' then for ShowIndex:=1 to Length(a) do Write(Hex(Ord(a[ShowIndex]),2),' ');
-        for ShowIndex:=1 to 20 do Write(' ');
-        GotoXY(20,WhereY);
-        Writeln(CurL); Writeln;
-        {repeat until KeyPressed;}
-        oldopaddress:=opaddress
+        PrintLine:=Hex(oldopaddress,4)+' ';
+        if a<>'' then for ShowIndex:=1 to Length(a) do PrintLine:=PrintLine+Hex(Ord(a[ShowIndex]),2)+' ';
+        while Length(PrintLine)<20 do PrintLine:=PrintLine+' ';
+        PrintLine:=Copy(PrintLine,1,20);
+        if curL[Length(curL)]<>':' then while Length(PrintLine)<28 do PrintLine:=PrintLine+' ';
+        PrintLine:=PrintLine+curL;
+        Writeln(PrintLine);
+        oldopaddress:=opaddress;
       end;
     until FALSE;
+  if (Pass<>2) or (SHOW=FALSE) then begin GotoXY(6,WhereY-1); Writeln(Right4(reallines)); end;{ fertig! }
   end;
 
   Writeln;
@@ -2526,6 +2629,8 @@ end.
  - Suchen nach .LO-Dateien und .A18 im ASS-Verzeichnis   CHECKY080397/210597
  - Label und Mnemo in einer Zeile                              220597/220597
  - Z80-Assembler                                               191196/290597
+ - Pseudo-Statements mÅssen auch in Makros erlaubt sein!       191196/300597
+ - Makros in Z80-Code                                          300597/300597
 
 ****************************************************************************
  geplante Erweiterungen:
@@ -2544,7 +2649,6 @@ end.
  - Punkt vor Strich!                                                  080796
  - End-of-Transmission! Kein Absturz des C64-Wedge-Programms          180896
  - X-Debugger                                                         180896
- - Pseudo-Statements mÅssen auch in Makros erlaubt sein!              191196
  - Spaces bei Rechnungen rausfiltern                                  191196
  - Synchronisationsfehler erkennen                                    260197
  - Abbruch bei Transfer                                         CHECKY080397
@@ -2555,5 +2659,9 @@ end.
  - Linken von Libraries/Emulatoren                                    210597
  - Transfer von 0 Bytes abfangen!                                     210597
  - Bedingtes Assemblieren mit .if                                     280597
- - Makros in Z80-Code                                                 300597
+ - Aufruf eines externen öbertragungsprogramms                        300597
+ - Bugs bei Namen mit ".."                                            300597
+ - Einheitlichere Kommandozeile                                       300597
+ - ausfÅhrliche Hilfestellung als Overlay                             300597
+ - Alle Bildschirmausgaben au·er Line ??/?? nach STDOUT               300597
 *)
