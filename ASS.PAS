@@ -64,6 +64,7 @@
         ->(29:56)
  21.05.97  00:21:31:26 Opcodes-Datei als EXE-Overlay
            00:20:42:57 LOs auch im Ass-Verz.
+ 22.05.97  00:19:24:50 Labels in Zeile mit Mnemo; Line/sec
 }
 
 {$G+}
@@ -301,10 +302,11 @@ end;
 procedure TrimSourceText(Filename: string);
 var actSourcefile: text;
     actReallinenumber: word;
-    Line: string;
-    ins: byte;
+    Line, Line2: string;
+    ins, ins2: byte;
     IncFile: string;
     IncFound: boolean;
+    NextLineInBuffer: boolean;
 begin
   if FindFile(Filename)=FALSE then
   begin
@@ -314,11 +316,35 @@ begin
   SourceFile[SourceFiles]:=Filename; Inc(SourceFiles);
   Assign(actSourceFile, Filename); Reset(actSourceFile);
   actReallinenumber:=0;
+  NextLineInBuffer:=FALSE;
   repeat
     Inc(actReallinenumber);
-    Readln(actSourceFile, Line);
+    if NextLineInBuffer then
+    begin
+      Line:=Line2;
+    end else begin
+      Readln(actSourceFile, Line);
+    end;
     ins:=Pos(SEMICOLON, Line);
     if ins>0 then Line[0]:=Chr(ins-1); { REMs lîschen }
+ { Zeile mit Label und Mnemo aufspalten }
+    if (Line[0]<>#0) and (Line[1]<>' ') and (Line[1]<>#9)
+    and (Line[1]<>'.') and (NextLineInBuffer=FALSE) then
+    begin        { ^ Pseudo-Opcodes dÅrfen weiterhin an 1. Stelle stehen }
+      ins:=Pos(' ', Line);
+      ins2:=Pos(#9, Line);
+      if (ins2<ins) and (ins2<>0) then ins:=ins2;
+      if ins>0 then
+      begin
+        Line2:=Copy(Line,ins+1,255);
+        Line[0]:=Chr(ins-1);
+        if Line[Length(Line)]<>':' then Line:=Line+':';
+        NextLineInBuffer:=TRUE;
+        { -> Line wird abgelegt, Line2 beim nÑchsten Durchlauf }
+      end;
+    end else begin
+      NextLineInBuffer:=FALSE;
+    end;
     Line:=Trim(Line);
     if Line<>'' then
     begin
@@ -1815,6 +1841,7 @@ codeok:
 
   Writeln;
   Writeln('Assembly O.K. (',(Time-StartTime)/18.2 : 5 : 2,' sec), $',hex(Startaddress,4),'-$',hex(Startaddress+OcodeIndex,4));
+  if Time-StartTime<>0 then Writeln(reallines/((Time-StartTime)/18.2):5:0,' lines/sec.');
 
   if SaveAs>0 then
   begin
@@ -1950,6 +1977,7 @@ end.
  - INCLUDE von Objectfiles                                     300596/240197
  - Leerzeichen bei .LA                                   CHECKY080397/210597
  - Suchen nach .LO-Dateien und .A18 im ASS-Verzeichnis   CHECKY080397/210597
+ - Label und Mnemo in einer Zeile                              220597/220597
 
 ****************************************************************************
  geplante Erweiterungen:
@@ -1979,6 +2007,5 @@ end.
  - GEOS!                                                              210597
  - Linken von Libraries/Emulatoren                                    210597
  - Transfer von 0 Bytes abfangen!                                     210597
- - Label und Mnemo in einer Zeile                                     220597
 *)
 
