@@ -105,7 +105,9 @@
  11.04.98  00:03:25:47 Bug in Opcodeliste: ldx abs,y
  19.05.98  00:10:52:48 Bugfix: Labels in Makros
  20.05.98  00:30:33:27 geosSym.asm, geosMac.asm
-
+ 21.05.98  00:37:30:85 Timeout bei PC64 öbertragung
+           00:18:00:88 Timeout bei 64NET öbertragung (untested)
+           00:01:59:60 Bugfix
 }
 
 {$G+}
@@ -272,6 +274,8 @@ var SourceText : ^tSourceText;
     SizeAccu, SizeIndex: boolean;
 
     IgnoreNextEnd: boolean;
+
+    TransErr: boolean;
 
 { neue Funktionen/Prozeduren fÅr Pascal }
 function UpCaseStr(S: string): string;
@@ -1466,21 +1470,33 @@ asm
   or al, ah
 end;
 
-procedure WaitForATN; assembler;
+function WaitForATN: boolean;
+begin
 asm
+  mov @Result,TRUE
+  xor cx,cx
 @@WaitForATN1:
+  dec cx
+  je @end
   call getport
   cmp al, 0
   jne @@WaitForATN1
   mov al, 128
   mov dx, 0378h
   out dx, al
+  mov @Result,FALSE
+@end:
+end;
 end;
 
 function GetByte: byte;
 begin
   asm
+  mov TransErr, TRUE
+  xor cx,cx
 @@wfcl1:
+  dec cx
+  je @end
   call getport
   test al, 4
   je @@wfcl1    { Auf Clock=1 warten }
@@ -1489,7 +1505,10 @@ begin
   mov al, 10*8  { =%(0)101(0) }
   mov dx, 0378h
   out dx, al
+  xor cx,cx
 @@wfcl2:
+  dec cx
+  je @end
   call getport
   test al, 4
   jne @@wfcl2   { Auf Clock=0 warten }
@@ -1498,7 +1517,10 @@ begin
   mov al, 4*8   { =%(0)010(0) }
   mov dx, 0378h
   out dx, al
+  xor cx,cx
 @@wfcl3:
+  dec cx
+  je @end
   call getport
   test al, 4
   je @@wfcl3    { Auf Clock=1 warten }
@@ -1507,7 +1529,10 @@ begin
   mov al, 12*8  { =%(0)110(0) }
   mov dx, 0378h
   out dx, al
+  xor cx,cx
 @@wfcl4:
+  dec cx
+  je @end
   call getport
   test al, 4
   jne @@wfcl4   { Auf Clock=0 warten }
@@ -1523,6 +1548,8 @@ begin
   or bl, cl
   or bl, ch
   mov @Result, bl
+  mov TransErr, FALSE
+@end:
   end;
 end;
 
@@ -1532,15 +1559,24 @@ var F: string;
     i: byte;
 begin
   F:='';
-  l:=GetByte;
-  if l>0 then for i:=1 to l do Filename:=Filename+Chr(GetByte);
+  l:=GetByte; if TransErr then Exit;
+  if l>0 then
+    for i:=1 to l do
+    begin
+      Filename:=Filename+Chr(GetByte);
+      if TransErr then Exit;
+    end;
   GetFilename:=F;
 end;
 
 procedure asmsendbyte; assembler;
 asm
+  mov TransErr, TRUE
   push ax
+  xor cx,cx
 @@wfready1:
+  dec cx
+  je @end
   call getport
   cmp al, 4
   jne @@wfready1
@@ -1550,29 +1586,36 @@ asm
   or al, 8
   dec dx { $0378 }
   out dx, al
+  xor cx,cx
 @@wfready2:
+  dec cx
+  je @end
   call getport
   or al, al
   jne @@wfready2
+@end:
   pop ax
   and al, 0F0h
   mov dx, 0378h
   out dx, al
+  mov TransErr, FALSE
 end;
 
-procedure SendByte(b: byte);
+function SendByte(b: byte): boolean;
 begin
   asm
     mov al, b
     call asmsendbyte
-  end
+  end;
+  if TransErr then SendByte:=TRUE else SendByte:=FALSE;
 end;
 
-procedure SendData(a: array of byte; l: byte);
+function SendData(a: array of byte; l: byte): boolean;
 var S, O: word;
 begin
-   S:=Seg(a); O:=Ofs(a);
+  S:=Seg(a); O:=Ofs(a);
   asm
+    mov @Result, TRUE
     push ds
     mov ax, S
     mov ds, ax
@@ -1581,54 +1624,72 @@ begin
     mov ch, 0
 @@sendstringloop:
     lodsb
+    push cx
     call asmsendbyte
+    pop cx
+    cmp TransErr, TRUE
+    je @end
     loop @@sendstringloop
+    mov @Result, FALSE
+@end:
     pop ds
   end;
 end;
 
-procedure POKEC64(Addr: word; a: array of byte; l: byte);
+function POKEC64(Addr: word; a: array of byte; l: byte): boolean;
 begin
-  SendByte($FF);
-  SendByte(1);
-  SendByte(l+1);
-  SendByte(Lo(Addr));
-  SendByte(Hi(Addr));
-  SendData(a,l);
+  POKEC64:=TRUE;
+  if SendByte($FF) then Exit;
+  if SendByte(1) then Exit;
+  if SendByte(l+1) then Exit;
+  if SendByte(Lo(Addr)) then Exit;
+  if SendByte(Hi(Addr)) then Exit;
+  if SendData(a,l) then Exit;
+  POKEC64:=FALSE;
 end;
 
-procedure POKELC64(Addr: word; a: array of byte; l: word);
+function POKELC64(Addr: word; a: array of byte; l: word): boolean;
 var i: word;
     b: array[0..249] of byte;
 begin
+  POKELC64:=TRUE;
   i:=0;
   repeat
     for j:=0 to 249 do b[j]:=a[i+j];
-    if l-i>=250 then PokeC64(addr+i,b,250) else PokeC64(addr+i,b,l-i);
+    if l-i>=250 then
+    begin
+      if PokeC64(addr+i,b,250) then Exit;
+    end else begin
+      if PokeC64(addr+i,b,l-i) then Exit;
+    end;
     Inc(i,250);
   until i>=l;
+  POKELC64:=FALSE;
 end;
 
-procedure Transfer64NET(addr: word; a: array of byte; l: word);
+function Transfer64NET(addr: word; a: array of byte; l: word): boolean;
 var Filename: string;
 begin
-  WaitForATN; { 64NET-Server-Initialisierung }
-  GetByte; { Befehl }
-  Filename:=GetFilename;
-  GetByte; { SekundÑradresse }
-  POKELC64(Addr, a, l);
-{'  EndOfTransmission 0 }
+  Transfer64NET:=TRUE;
+  if WaitForATN then Exit; { 64NET-Server-Initialisierung }
+  GetByte; if TransErr then Exit; { Befehl }
+  Filename:=GetFilename; if TransErr then Exit;
+  GetByte; if TransErr then Exit;  { SekundÑradresse }
+  if POKELC64(Addr,a,l) then Exit;
+  Transfer64NET:=FALSE;
 end;
 
-procedure SYS(Addr: word; A,X,Y: byte);
+function SYS(Addr: word; A,X,Y: byte): boolean;
 begin
-  SendByte($F8);
-  SendByte(Lo(Addr));
-  SendByte(Hi(Addr));
-  SendByte(A);
-  SendByte(X);
-  SendByte(Y);
-  SendByte(0);
+  SYS:=TRUE;
+  if SendByte($F8) then Exit;
+  if SendByte(Lo(Addr)) then Exit;
+  if SendByte(Hi(Addr)) then Exit;
+  if SendByte(A) then Exit;
+  if SendByte(X) then Exit;
+  if SendByte(Y) then Exit;
+  if SendByte(0) then Exit;
+  SYS:=FALSE;
 end;
 
 {
@@ -1650,15 +1711,19 @@ asm
 end;
 
 
-procedure PC64SendByte(b: byte); assembler;
-label wfC64a, wfC64b;
+function PC64SendByte(b: byte): boolean;
+begin
 asm
+    mov @result, TRUE
     mov ah, b
     mov dx, PORT+1
-wfC64b:
+    xor cx,cx
+@wfC64b:
+    dec cx
+    je @end { timeout }
     in al, dx
     and al, 128
-    jne wfC64b  { auf Clock = 0 warten }
+    jne @wfC64b  { auf Clock = 0 warten }
 
     dec dx
     mov al, 128
@@ -1669,24 +1734,30 @@ wfC64b:
     out dx, al { Lo-Nybble senden, NMI=1 }
 
     inc dx
-wfC64a:
+    xor cx,cx
+@wfC64a:
+    dec cx
+    je @end { timeout }
     in al, dx
     and al, 128
-    je wfC64a  { auf Clock = 1 warten }
+    je @wfC64a  { auf Clock = 1 warten }
 
     dec dx
     mov al, 128
     out dx, al { NMI vorbereiten }
     shr ax, 12
     out dx, al { Hi-Nybble senden, NMI=1 }
+    mov @result, FALSE
+@end:
+end;
 end;
 
-procedure PC64SendData(S: array of byte; l: byte);
-label wfC64a, wfC64b, SendLoop, lll;
+function PC64SendData(S: array of byte; l: byte): boolean;
 var SSeg, SOfs: word;
 begin
   SSeg:=Seg(S); SOfs:=Ofs(S);
   asm
+    mov @Result, TRUE
     push ds
 
     mov cl, l
@@ -1695,15 +1766,23 @@ begin
     mov ax, SSeg
     mov ds, ax
     mov dx, PORT+1
-SendLoop:
+@SendLoop:
+    push cx
     lodsb
     mov ah, al
     mov bl, al
     and bl, 15 { Lo-Nybble nach bl }
-wfC64b:
+    xor cx,cx
+@wfC64b:
+    dec cx
+    jne @ntimeout
+@timeout:
+    pop cx
+    jmp @end
+@ntimeout:
     in al, dx
     and al, 128
-    jne wfC64b  { auf Clock = 0 warten }
+    jne @wfC64b  { auf Clock = 0 warten }
 
     dec dx
     mov al, 128
@@ -1715,10 +1794,13 @@ wfC64b:
     shr ah, 4 { Hi-Nybble nach ah }
 
     inc dx
-wfC64a:
+    xor cx,cx
+@wfC64a:
+    dec cx
+    je @timeout
     in al, dx
     and al, 128
-    je wfC64a  { auf Clock = 1 warten }
+    je @wfC64a  { auf Clock = 1 warten }
 
     dec dx
 {    mov al, 128  al=128! }
@@ -1727,42 +1809,55 @@ wfC64a:
     out dx, al { Hi-Nybble senden, NMI=1 }
     inc dx
 
-    loop SendLoop
-
+    pop cx
+    loop @SendLoop
+    mov @Result, FALSE
+@end:
     pop ds
   end;
 end;
 
 
-procedure PC64POKEC64(Addr: word; a: array of byte; l: byte);
+function PC64POKEC64(Addr: word; a: array of byte; l: byte): boolean;
 begin
-  PC64SendByte(0);
-  PC64SendByte(l);
-  PC64SendByte(Lo(Addr));
-  PC64SendByte(Hi(Addr));
+  PC64POKEC64:=TRUE;
+  if PC64SendByte(0) then Exit;
+  if PC64SendByte(l) then Exit;
+  if PC64SendByte(Lo(Addr)) then Exit;
+  if PC64SendByte(Hi(Addr)) then Exit;
   PC64SendData(a,l);
+  PC64POKEC64:=FALSE;
 end;
 
-procedure PC64POKELC64(Addr: word; a: array of byte; l: word);
+function PC64POKELC64(Addr: word; a: array of byte; l: word): boolean;
 var i: word;
     b: array[0..249] of byte;
 begin
+  PC64POKELC64:=TRUE;
   i:=0;
   repeat
     for j:=0 to 249 do b[j]:=a[i+j];
-    if l-i>=250 then PC64PokeC64(addr+i,b,250) else PC64PokeC64(addr+i,b,l-i);
+    if l-i>=250 then
+    begin
+      if PC64PokeC64(addr+i,b,250) then Exit;
+    end else begin
+      if PC64PokeC64(addr+i,b,l-i) then Exit;
+    end;
     Inc(i,250);
   until i>=l;
+  PC64POKELC64:=FALSE;
 end;
 
-procedure PC64SYS(Addr: word; A,X,Y: byte);
+function PC64SYS(Addr: word; A,X,Y: byte): boolean;
 begin
-  PC64SendByte(1);
-  PC64SendByte(Lo(Addr));
-  PC64SendByte(Hi(Addr));
-  PC64SendByte(X);
-  PC64SendByte(Y);
-  PC64SendByte(A);
+  PC64SYS:=TRUE;
+  if PC64SendByte(1) then Exit;
+  if PC64SendByte(Lo(Addr)) then Exit;
+  if PC64SendByte(Hi(Addr)) then Exit;
+  if PC64SendByte(X) then Exit;
+  if PC64SendByte(Y) then Exit;
+  if PC64SendByte(A) then Exit;
+  PC64SYS:=FALSE;
 end;
 
 function AssembleZ80(Line: string): string;
@@ -2588,6 +2683,55 @@ codeok:
   Assemble:=a;
 end;
 
+function DoTransfer: boolean;
+begin
+  DoTransfer:=TRUE;
+  Write('Press any key to start transfer...'); repeat until KeyPressed; Writeln;
+  Write('Transfer...');
+  case Transfer and 127 of
+  1: { 64NET } if Transfer64NET(Startaddress, ocode, ocodeIndex) then Exit;
+  2: { PC64 }  if PC64POKELC64(Startaddress, ocode, ocodeIndex) then Exit;
+  end;
+  while Loads<>'' do
+  begin
+    j:=Pos(#0,Loads);
+    Filename:=Copy(Loads,1,j-1);
+    LoadAddress:=Ord(Loads[j+1])+Ord(Loads[j+2]) shl 8;
+    Loads:=Copy(Loads,j+3,255);
+    if FindFile(Filename)=FALSE then
+    begin
+      Filename:=ASSDirectory+Filename;
+      if FindFile(Filename)=FALSE then
+      begin
+        Writeln; Writeln('File "',Filename,'" not found!');
+        Halt;
+      end;
+    end;
+    Write(Filename,' ');
+    Assign(SaveFile,Filename); Reset(SaveFile,1);
+    BlockRead(SaveFile,i,2);
+    if LoadAddress<>$FFFF then i:=LoadAddress;
+    repeat
+      BlockRead(SaveFile,ocode,MAXOCODE,BytesRead);
+      if (Transfer and 127)=1 then POKELC64(i,ocode,BytesRead);
+      if (Transfer and 127)=2 then if PC64POKELC64(i,ocode,BytesRead) then Exit;
+      Inc(i,BytesRead);
+    until Eof(SaveFile);
+    Close(SaveFile);
+  end;
+  if (Transfer and 128)>0 then
+  begin
+    Write('Start...');
+    if startjumpaddress=0 then startjumpaddress:=startaddress;
+    case Transfer and 127 of
+    1: { 64NET } if SYS(startjumpaddress,0,0,0) then Exit;
+    2: { PC64 } if PC64SYS(startjumpaddress,0,0,0) then Exit;
+    end;
+  end;
+  DoTransfer:=FALSE;
+end;
+
+
 { Main }
 
 begin
@@ -2600,7 +2744,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.27f   05-19-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.28    05-21-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2871,53 +3015,9 @@ begin
     Writeln('OK.');
   end;
 
-  if (Transfer and 127)>0 then
+  if Transfer>0 then
   begin
-    Write('Press any key to start transfer...'); repeat until KeyPressed; Writeln;
-    Write('Transfer...');
-    case Transfer and 127 of
-    1: { 64NET } Transfer64NET(Startaddress, ocode, ocodeIndex);
-    2: { PC64 }  PC64POKELC64(Startaddress, ocode, ocodeIndex);
-    else begin Writeln('Sorry, transfer not yet implemented!'); Halt; end; end;
-    while Loads<>'' do
-    begin
-      j:=Pos(#0,Loads);
-      Filename:=Copy(Loads,1,j-1);
-      LoadAddress:=Ord(Loads[j+1])+Ord(Loads[j+2]) shl 8;
-      Loads:=Copy(Loads,j+3,255);
-      if FindFile(Filename)=FALSE then
-      begin
-        Filename:=ASSDirectory+Filename;
-        if FindFile(Filename)=FALSE then
-        begin
-          Writeln; Writeln('File "',Filename,'" not found!');
-          Halt;
-        end;
-      end;
-      Write(Filename,' ');
-      Assign(SaveFile,Filename); Reset(SaveFile,1);
-      BlockRead(SaveFile,i,2);
-      if LoadAddress<>$FFFF then i:=LoadAddress;
-      repeat
-        BlockRead(SaveFile,ocode,MAXOCODE,BytesRead);
-        if (Transfer and 127)=1 then POKELC64(i,ocode,BytesRead);
-        if (Transfer and 127)=2 then PC64POKELC64(i,ocode,BytesRead);
-        Inc(i,BytesRead);
-      until Eof(SaveFile);
-      Close(SaveFile);
-    end;
-    Writeln('OK.');
-    if (Transfer and 128)>0 then
-    begin
-      Write('Start...');
-      if startjumpaddress=0 then startjumpaddress:=startaddress;
-      case Transfer and 127 of
-      1: { 64NET } SYS(startjumpaddress,0,0,0);
-      2: { PC64 } PC64SYS(startjumpaddress,0,0,0);
-      else begin Writeln('Sorry, start not yet implemented!'); Halt; end;
-      end;
-    end;
-    Writeln('OK.');
+    if DoTransfer then Writeln('Failed!') else Writeln('OK.');
   end;
 
   Writeln;
@@ -2955,6 +3055,8 @@ end.
  - .BR & DS > 255                                              170897/150398
  - ÅberprÅfen, wie der Assembler auf leere Makros reagiert     160897/170398
  - Bedingtes Assemblieren mit .if                              280597/170398
+ - Abbruch bei Transfer                                  CHECKY080397/210598
+ - GEOS!                                                       210597/200598
 
 ****************************************************************************
  geplante Erweiterungen:
@@ -2972,10 +3074,8 @@ end.
  - X-Debugger                                                         180896
  - Spaces bei Rechnungen rausfiltern                                  191196
  - Synchronisationsfehler erkennen                                    260197
- - Abbruch bei Transfer                                         CHECKY080397
  - Flexible Port-Angabe fÅr PC64 UND 64NET per Parameter              090397
  - mehrere Bases; Base<>Position im Speicher                     HOOGO210597
- - GEOS!                                                              210597
  - Linken von Libraries/Prozessor-Emulatoren                          210597
  - Transfer von 0 Bytes abfangen!                                     210597
  - Bedingtes Assemblieren mit .if                                     280597
