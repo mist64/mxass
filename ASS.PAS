@@ -90,6 +90,7 @@
  06.03.98  00:06:03:82 .start
            00:07:37:75 Giga-Ass: .eq, .te, .ds
  11.03.98  00:07:31:53 '=' statt EQU, .setpc, .b, .w
+ 14.03.98  00:19:31:23 .object wie -PRG, mit variablem Dateinamen
 }
 
 {$G+}
@@ -108,7 +109,7 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
       MAXMACROS=10;     { Maximale Anzahl der Makros }
       MAXMACROLENGTH=512;{ Bytes fr Makroquelltext }
       MAXMACPARA=10;    { Maximale Anzahl von Makroparametern }
-      MAXOCODE=16000;   { Maximale Gr”áe des ObjectCodes }
+      MAXOCODE=15000;   { Maximale Gr”áe des ObjectCodes }
 
       QUOTE=#34;
       CR=#13+#10;
@@ -213,6 +214,7 @@ var SourceText : ^tSourceText;
     Filename: string;
     Transfer: byte;
     SaveAs: byte;
+    SaveName: string;
     Symbols: boolean;
     SourceFiles: word;
     lines, reallines: word;
@@ -784,7 +786,7 @@ begin
   end;
   if not ArrayFound then
   begin
-    if Labels=MAXLABELS then Errorstop('Too many labels');
+    if Labels=MAXLABELS then Errorstop('Too many labels!');
     xLabel[Labels]:=L;
     Value[Labels]:=V;
     Inc(Labels);
@@ -2306,6 +2308,25 @@ begin
       startjumpaddress:=number;
       Transfer:=Transfer or 128; { bei Transfer Start einschalten }
     end;
+    if Pseudo='OB' then { .object }
+    begin
+      PseudoOK:=TRUE;
+      if Operand='' then Errorstop('Filename required!');
+      if Operand[1]='"' then Operand:=Copy(Operand,2,255);
+      if Operand[Length(Operand)]='"' then Operand[0]:=Chr(Length(Operand)-1);
+      if Copy(Operand,1,2)='@:' then Operand:=Copy(Operand,3,255);
+      ins:=Pos(',',Operand);
+      if ins>0 then begin
+        a:=UpCaseStr(Copy(Operand,ins+1,1));
+        Operand:=Copy(Operand,1,ins-1);
+        if a='P' then Operand:=Operand+'.PRG';
+        if a='S' then Operand:=Operand+'.SEQ';
+        if a='U' then Operand:=Operand+'.USR';
+        a:=''; { nur als Hilfsvariable benutzt }
+      end;
+      SaveName:=Operand;
+      SaveAs:=2;
+    end;
     if (Pseudo='BR') or (Pseudo='DS') then { .br oder .ds (define storage) }
     begin
       PseudoOK:=TRUE;
@@ -2448,7 +2469,7 @@ begin
       if Operand='' then Errorstop('Filename required');
       if Operand[1]='"' then Operand:=Copy(Operand,2,255);
       if Operand[Length(Operand)]='"' then Operand[0]:=Chr(Length(Operand)-1);
-      if Length(Loads)+Length(Operand)>254 then Errorstop('Too many files to load');
+      if Length(Loads)+Length(Operand)>254 then Errorstop('Too many files to load!');
       if Pass=2 then Loads:=Loads+Operand+#0;
       PseudoOK:=TRUE;
     end;
@@ -2477,7 +2498,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.26b   03-06-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.26d   03-14-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2688,7 +2709,8 @@ begin
     end;
     2: { PRG }
     begin
-      Assign(SaveFile,Filename+'PRG'); Rewrite(SaveFile,1);
+      if SaveName='' then SaveName:=Filename+'PRG';
+      Assign(SaveFile,SaveName); Rewrite(SaveFile,1);
         BlockWrite(SaveFile,Startaddress,2);
         BlockWrite(SaveFile,ocode,ocodeIndex);
       Close(SaveFile);
