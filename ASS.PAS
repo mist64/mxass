@@ -89,6 +89,7 @@
  05.03.98  00:12:05:65 Bugfix: Punkte in/LÑnge von Datei/Verzeichnisnamen
  06.03.98  00:06:03:82 .start
            00:07:37:75 Giga-Ass: .eq, .te, .ds
+ 11.03.98  00:07:31:53 '=' statt EQU, .setpc, .b, .w
 }
 
 {$G+}
@@ -386,7 +387,8 @@ begin
       ins2:=Pos(#9, Line); if ins2=0 then ins2:=255;
       if ins2<ins then ins:=ins2;
       testequ:=UpCaseStr(Copy(Trim(Copy(Line,ins+1,255)),1,4));
-      if (Copy(testequ,1,3)='EQU') or (testequ='GEQU') or (testequ='.EQU') then goto EQU;
+      if (Copy(testequ,1,3)='EQU') or (testequ='GEQU') or (testequ='.EQU') or
+         ((testequ[1]='=') and (testequ[0]<>#0)) then goto EQU;
       if ins<>255 then
       begin
         Line2:=Copy(Line,ins+1,255);
@@ -962,9 +964,11 @@ DCW:
     end;
     if not PseudoOK then Operand:=Trim(Operand); { fÅr nÑchsten Test }
     testequ:=UpCaseStr(Copy(Operand,1,4));
-    if ((Copy(testequ,1,3)='EQU') or (testequ='GEQU') or (testequ='.EQU')) and (PseudoOK=FALSE) then
+    if ((Copy(testequ,1,3)='EQU') or (testequ='GEQU') or (testequ='.EQU') or ((testequ[1]='=') and (testequ[0]<>#0)))
+       and (PseudoOK=FALSE) then
     begin
-      if testequ='GEQU' then Operand:=Trim(Copy(Operand,5,255)) else Operand:=Trim(Copy(Operand,4,255));
+      if (testequ[1]='=') and (testequ[0]<>#0) then Operand:=Trim(Copy(Operand,2,255)) else
+        if testequ='GEQU' then Operand:=Trim(Copy(Operand,5,255)) else Operand:=Trim(Copy(Operand,4,255));
       PseudoOK:=TRUE; a:='';
       unknown:=FALSE;
       number:=GetNumber(Operand);
@@ -2277,8 +2281,8 @@ begin
     end;
     if Pseudo='PE' then begin AsciiFlag:=0; PseudoOK:=TRUE; end;
     if Pseudo='AS' then begin AsciiFlag:=1; PseudoOk:=TRUE; end;
-    if (Pseudo='BA') or (Pseudo='OR') then { .ba oder .org }
-    begin
+    if (Pseudo='BA') or (Pseudo='OR') or (Pseudo='SE') then
+    begin { .ba oder .org oder .setpc }
       PseudoOK:=TRUE;
       unknown:=FALSE;
       number:=GetNumber(Operand);
@@ -2318,7 +2322,7 @@ begin
       a:='';
       for i:=1 to times do a:=a+Chr(number);
     end;
-    if (Pseudo='BY') or (Pseudo='DB') then
+    if (Pseudo='BY') or (Pseudo='DB') or (Pseudo='B') then
     begin
       PseudoOK:=TRUE;
       insold:=1;
@@ -2372,7 +2376,7 @@ begin
       a:=SPetscii(a);
       a:=SScrCode(a);
     end;
-    if (Pseudo='WO') or (Pseudo='DW') then
+    if (Pseudo='WO') or (Pseudo='DW') or (Pseudo='W') then
     begin
       PseudoOK:=TRUE;
       insold:=1;
