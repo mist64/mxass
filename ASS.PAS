@@ -112,6 +112,7 @@
            00:06:31:37 "Trying to establish connection"
  27.05.98  00:21:20:76 Secret message
  01.06.98  00:35:37:99 GoDot StartUp...
+ 05.06.98  00:03:21:24 LONGA/LONGI/65816 bugfix
 }
 
 {$G+}
@@ -1001,7 +1002,7 @@ DCW:
     end;
     if Statement='ORG' then
     begin
-      PseudoOK:=TRUE;
+      PseudoOK:=TRUE; a:='';
       unknown:=FALSE;
       number:=GetNumber(Operand);
       if unknown=TRUE then Errorstop('Base has to be a constant!');
@@ -1021,6 +1022,7 @@ DCW:
       Operand:=UpCaseStr(Trim(Operand));
       if Operand='ON' then begin Cpu:=2; PseudoOK:=TRUE; end;{65816 oder 65802}
       if Operand='OFF' then begin Cpu:=0; PseudoOK:=TRUE; end;{6502}
+      a:='';
       if not PseudoOK then Errorstop('"65816 ON" for 65816/65802; "65816 OFF" for 6502.');
     end;
     if Statement='LONGA' then
@@ -1029,6 +1031,7 @@ DCW:
       Operand:=UpCaseStr(Trim(Operand));
       if Operand='ON' then begin SizeAccu:=TRUE; PseudoOK:=TRUE; end;
       if Operand='OFF' then begin SizeAccu:=FALSE; PseudoOK:=TRUE; end;
+      a:='';
       if not PseudoOK then Errorstop('ON or OFF required.');
     end;
     if Statement='LONGI' then
@@ -1037,6 +1040,7 @@ DCW:
       Operand:=UpCaseStr(Trim(Operand));
       if Operand='ON' then begin SizeIndex:=TRUE; PseudoOK:=TRUE; end;
       if Operand='OFF' then begin SizeIndex:=FALSE; PseudoOK:=TRUE; end;
+      a:='';
       if not PseudoOK then Errorstop('ON or OFF required.');
     end;
     if not PseudoOK then Operand:=Trim(Operand); { fÅr nÑchsten Test }
@@ -2754,7 +2758,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.28c   05-27-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.28d   06-05-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
