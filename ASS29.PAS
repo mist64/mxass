@@ -10,12 +10,12 @@
            00:03:50:42 wirkliche Zeilennummern
            00:03:41:69
  18.05.96: 00:01:45:51 Ausgabe von Start- und Endadresse
- 27.05.96  00:02:46:78 Bugfix: Spaces bei RechenausdrÅcken
+ 27.05.96  00:02:46:78 Bugfix: Spaces bei Rechenausdr¸cken
  29.05.96: 01:03:35:51 lokale Labels (beginnen mit "+" oder "-")
- 30.05.96: 00:06:57:44 Bugfix bei lokalen Labels und "array scan"-AusdrÅcken
+ 30.05.96: 00:06:57:44 Bugfix bei lokalen Labels und "array scan"-Ausdr¸cken
         ->(08:06)
  30.05.96: 00:35:08:28 Kommandozeilenparameter, Env.Var., SaveAs, Transfer
-           00:01:41:52 Weglassen von Erweiterung beim Filenamen mîglich
+           00:01:41:52 Weglassen von Erweiterung beim Filenamen mˆglich
            00:00:52:01 Bugfix
            00:57:24:74 (bis zum Stromausfall...)
            01:13:24:46 Geschwindigkeitsoptimierung um 37%
@@ -32,7 +32,7 @@
  08.07.96  00:08:21:34 Errorstop bei "Byte > 8 Bit" bei "immediate" etc.
            00:02:21:69 Zu viele Parameter bei ".br"
  10.08.96  00:36:21:38 Optimierung der 64NET-Routinen
- 18.08.96  00:30:19:36 öbertragung per PC64-Kabel
+ 18.08.96  00:30:19:36 ‹bertragung per PC64-Kabel
  25.09.96  01:10:24:90 Umschreiben in Pascal...
  26.09.96  02:00:04:39 ...
  27.09.96  00:46:10:15 ...
@@ -51,7 +51,7 @@
  16.11.96  00:21:25:70 ...
  17.11.96  02:03:04:81 ...
            00:25:49:70 ...
-           00:23:07:74 UnterstÅtzung von 16-Bit-Akku und -Index
+           00:23:07:74 Unterst¸tzung von 16-Bit-Akku und -Index
  18.11.96  01:01:41:45 illegale 6502-Opcodes
  21.12.96  00:03:03:25 Portangabe als const
  24.01.97  00:14:58:80
@@ -80,13 +80,13 @@
            00:09:50:20 Verbesserung des SHOW-Modus
            00:06:22:97 ...
  25.06.97  00:06:30:22 Bugfix bei Pseudo-Opcodes
- 02.07.97  00:02:23:89 Anzeigen der Åbertragenen Dateien
+ 02.07.97  00:02:23:89 Anzeigen der ¸bertragenen Dateien
            00:06:28:21 Bug bei .LA mit Leerzeichen behoben
- 16.08.97  01:09:10:58 KompatibilitÑt zu anderen Assemblern: #, DC, EQU
+ 16.08.97  01:09:10:58 Kompatibilit‰t zu anderen Assemblern: #, DC, EQU
            00:23:34:89 ...
  17.08.97  00:40:31:78 GEQU,DS,ANOP,65816 ON/OFF,START,END,LONGA/I (WDC-Ass)
  18.08.97  00:19:07:08 .EQU, .DB, .DW, .ORG (Table Assembler)
- 05.03.98  00:12:05:65 Bugfix: Punkte in/LÑnge von Datei/Verzeichnisnamen
+ 05.03.98  00:12:05:65 Bugfix: Punkte in/L‰nge von Datei/Verzeichnisnamen
  06.03.98  00:06:03:82 .start (Giga-Ass)
            00:07:37:75 .eq, .te, .ds (Giga-Ass)
  11.03.98  00:07:31:53 '=' wie EQU, .setpc, .b, .w (Professional Ass)
@@ -95,9 +95,9 @@
  15.03.98  00:16:16:48 .lo "filename",address
            00:22:04:37 * als aktuelle Adresse, .ds > 255, .ds=0-Bugfix
            00:10:03:25 *-Bugfix
- 17.03.98  00:15:46:94 Base-Definition Åber *=$C000 (Turbo Ass)
+ 17.03.98  00:15:46:94 Base-Definition ¸ber *=$C000 (Turbo Ass)
            00:15:01:20 Bugifx: = ohne Space davor
-           00:05:20:05 Bugfix bei Spaces in RechenausdrÅcken
+           00:05:20:05 Bugfix bei Spaces in Rechenausdr¸cken
            00:13:30:67 .comment - .en; .if wert=wert - .en
  21.03.98  00:02:35:83 .ds-Bugifx
            00:00:27:43 .ds-Bugfix #2
@@ -105,8 +105,8 @@
  11.04.98  00:03:25:47 Bug in Opcodeliste: ldx abs,y
  19.05.98  00:10:52:48 Bugfix: Labels in Makros
  20.05.98  00:30:33:27 geosSym.asm, geosMac.asm
- 21.05.98  00:37:30:85 Timeout bei PC64 öbertragung
-           00:18:00:88 Timeout bei 64NET öbertragung (untested)
+ 21.05.98  00:37:30:85 Timeout bei PC64 ‹bertragung
+           00:18:00:88 Timeout bei 64NET ‹bertragung (untested)
            00:01:59:60 Bugfix
  23.05.98  00:03:10:36 -KEY, -KEY-
            00:06:31:37 "Trying to establish connection"
@@ -127,14 +127,14 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
       ADDMODES=23;
       Z80MNEMOS=78;
       MAXNAMELENGTH=25;
-      SOURCEMEM=65535; { Bytes fÅr Quelltext }
+      SOURCEMEM=65535; { Bytes f¸r Quelltext }
       MAXLINES=3000;
       MAXLABELS=490;   { Maximale Anzahl der Labels }
       MAXFILES=10;      { Maximale Anzahl der Quelldateien }
       MAXMACROS=10;     { Maximale Anzahl der Makros }
-      MAXMACROLENGTH=512;{ Bytes fÅr Makroquelltext }
+      MAXMACROLENGTH=512;{ Bytes f¸r Makroquelltext }
       MAXMACPARA=10;    { Maximale Anzahl von Makroparametern }
-      MAXOCODE=15000;   { Maximale Grî·e des ObjectCodes }
+      MAXOCODE=15000;   { Maximale Grˆﬂe des ObjectCodes }
 
       QUOTE=#34;
       CR=#13+#10;
@@ -169,7 +169,7 @@ const MNEMOS=108;       { Anzahl der bekannten Mnemos }
 
       Z80REGS=8;
       Z80REG: array[0..Z80REGS-1] of string[4]=('B','C','D','E','H','L','L','A');
-      { zweites L ist ein Dummy, wird nie Åbereinstimmen }
+      { zweites L ist ein Dummy, wird nie ¸bereinstimmen }
       Z80REG8S=8;
       Z80REG8: array[0..Z80REG8S-1] of string[4]=('B','C','D','E','H','L','(HL)','A');
       Z80REG16S=4;
@@ -258,7 +258,7 @@ var SourceText : ^tSourceText;
     Macros: word;
     ShowIndex: byte;
     Header: string[26];
-{ neu hinzugefÅgte Variablen }
+{ neu hinzugef¸gte Variablen }
     i: word;
     j: byte;
     ins, ins2: byte;
@@ -287,7 +287,7 @@ var SourceText : ^tSourceText;
 
     WaitForKey: boolean;
 
-{ neue Funktionen/Prozeduren fÅr Pascal }
+{ neue Funktionen/Prozeduren f¸r Pascal }
 function UpCaseStr(S: string): string;
 var i: byte;
 begin
@@ -299,9 +299,9 @@ function Trim(S: string): string;
 begin
   if S<>'' then
   begin
-    { Spaces links lîschen }
+    { Spaces links lˆschen }
     while ((S[1]=' ') or (S[1]=#9)) and (S<>'') do S:=Copy(S,2,255);
-    { Spaces rechts lîschen }
+    { Spaces rechts lˆschen }
     while (S[Length(S)]=' ') or (S[Length(S)]=#9) do S[0]:=Chr(Length(S)-1);
   end;
   Trim:=S;
@@ -348,7 +348,7 @@ var ins1, ins2: byte;
     l: byte;
 begin
   repeat
-    ins1:=Pos(QUOTE, T); { alles innerhalb von "" Åbermalen (einschl.) }
+    ins1:=Pos(QUOTE, T); { alles innerhalb von "" ¸bermalen (einschl.) }
     if ins1=0 then Break;
     ins2:=Pos(QUOTE,Copy(T,ins1+1,255));
     if ins2=0 then ins2:=Length(T) else ins2:=ins1+ins2;
@@ -419,11 +419,11 @@ begin
       Readln(actSourceFile, Line);
     end;
     ins:=Pos(SEMICOLON, Line);
-    if ins>0 then Line[0]:=Chr(ins-1); { REMs lîschen }
+    if ins>0 then Line[0]:=Chr(ins-1); { REMs lˆschen }
  { Zeile mit Label und Mnemo aufspalten }
     if (Line[0]<>#0) and (Line[1]<>' ') and (Line[1]<>#9)
     and (Line[1]<>'.') and (Line[1]<>'#') and (NextLineInBuffer=FALSE) then
-    begin        { ^ Pseudo-Opcodes dÅrfen weiterhin an 1. Stelle stehen }
+    begin        { ^ Pseudo-Opcodes d¸rfen weiterhin an 1. Stelle stehen }
       ins:=Pos(' ', Line); if ins=0 then ins:=255;
       ins2:=Pos(#9, Line); if ins2=0 then ins2:=255;
       if ins2<ins then ins:=ins2;
@@ -433,7 +433,7 @@ begin
       if ins<>255 then
       begin
         if Line[ins-1]='=' then begin
-          { fÅr =-Routine von spÑter ein Space einfÅgen }
+          { f¸r =-Routine von sp‰ter ein Space einf¸gen }
           Line:=Copy(Line,1,ins-2)+' '+Copy(Line,ins-1,255);
           goto EQU;
         end;
@@ -441,7 +441,7 @@ begin
         Line[0]:=Chr(ins-1);
         if Line[Length(Line)]<>COLON then Line:=Line+COLON;
         NextLineInBuffer:=TRUE;
-        { -> Line wird abgelegt, Line2 beim nÑchsten Durchlauf }
+        { -> Line wird abgelegt, Line2 beim n‰chsten Durchlauf }
       end else begin
         Line2:='';
         if Line[Length(Line)]<>COLON then Line:=Line+COLON;
@@ -497,7 +497,7 @@ EQU:
     end;
   until Eof(actSourceFile) and (NextLineInBuffer=FALSE);
   Close(ActSourceFile);
-  Dec(SourceFiles); { dem Aufrufer wieder die richtige Ebene Åbergeben }
+  Dec(SourceFiles); { dem Aufrufer wieder die richtige Ebene ¸bergeben }
 end;
 
 procedure Errorstop(S: string);
@@ -761,7 +761,7 @@ begin
 	  OldFound:=help+1;
 	until FALSE;
         if LLabels=0 then Errorstop('(1)Local label not found!');
-        if S[1]='+' then { nur VorwÑrtsverweise erlaubt }
+        if S[1]='+' then { nur Vorw‰rtsverweise erlaubt }
         begin
           number:=0;
           for i:=0 to LLabels-1 do
@@ -848,9 +848,9 @@ begin
   begin
 { bei lokalen Variablen nicht testen, ob schon definiert }
     if Pass=2 then Exit; { in Pass 2 Wert nicht neu setzen,
-                           da nur Sprungmarken fÅr lokale
+                           da nur Sprungmarken f¸r lokale
                            Variablen in Frage kommen, die
-                           fest sind. Au·erdem wÑr's zu auf-
+                           fest sind. Auﬂerdem w‰r's zu auf-
                            wendig, da mehrere mit gl. Namen. }
     ArrayFound:=FALSE;
   end else begin
@@ -937,7 +937,7 @@ begin
                    end;
   if not ArrayFound then
   begin
-{ Pseudo-Statements ohne fÅhrenden Punkt (WDC-Konvention) }
+{ Pseudo-Statements ohne f¸hrenden Punkt (WDC-Konvention) }
     Statement:=UpCaseStr(Statement);
     PseudoOK:=FALSE;
     if Statement='DCB' then goto DCB;
@@ -1039,7 +1039,7 @@ DCW:
       a:='';
       if not PseudoOK then Errorstop('ON or OFF required.');
     end;
-    if not PseudoOK then Operand:=Trim(Operand); { fÅr nÑchsten Test }
+    if not PseudoOK then Operand:=Trim(Operand); { f¸r n‰chsten Test }
     testequ:=UpCaseStr(Copy(Operand,1,4));
     if (
         (Copy(testequ,1,3)='EQU') or
@@ -1078,7 +1078,7 @@ DCW:
     Mask:=MacroOperand[MacroNum]+',';
     Operand:=Operand+',';
     MacroLabels:=0;
-    { 'redim MacroLabel$(0%:10), MacroValue??(0:10) nicht nîtig, siehe unten }
+    { 'redim MacroLabel$(0%:10), MacroValue??(0:10) nicht nˆtig, siehe unten }
     repeat
       ins1:=Pos(',',Operand);
       { instr(ins1old??,MacroOperand$,",") }
@@ -1108,11 +1108,11 @@ DCW:
     if curL='' then Break;
     b:=Assemble(curL);
     a:=a+b;
-    opaddress:=opaddress+Length(b) { Speicherpos. weiterzÑhlen! }
+    opaddress:=opaddress+Length(b) { Speicherpos. weiterz‰hlen! }
   until FALSE;
   opaddress:=opaddresssaved;
-  { MakroLabels lîschen, da sie nicht mehr gelten }
-  for i:=0 to MAXMACPARA do {! nîtig? }
+  { MakroLabels lˆschen, da sie nicht mehr gelten }
+  for i:=0 to MAXMACPARA do {! nˆtig? }
   begin
     MacroLabel[i]:='';
     MacroValue[i]:=0;
@@ -1130,7 +1130,7 @@ var actMnemo: string[3];
     addmode: byte;
     lOp: char;
     immediate: boolean;
-    operandFlag: boolean; {! Funktion mu· noch untersucht werden... }
+    operandFlag: boolean; {! Funktion muﬂ noch untersucht werden... }
     lrOp3: string[3];
     lrOp2: string[2];
     actOpcode: byte;
@@ -1358,13 +1358,13 @@ nMnemo:
      (SizeIndex) and
      (addmode=1) { immediate } then addmode:=5;
 
-  if Pass=1 then { Pass 1, nur Dummy Åbergeben }
+  if Pass=1 then { Pass 1, nur Dummy ¸bergeben }
   begin
     if addmode=0                      then a:=' ';
     if Pos(Chr(addmode),BYTE2MODES)>0 then a:='  ';
     if Pos(Chr(addmode),BYTE3MODES)>0 then a:='   ';
     if Pos(Chr(addmode),BYTE4MODES)>0 then a:='    ';
-  end else begin { Pass 2, echten Objectcode Åbergeben }
+  end else begin { Pass 2, echten Objectcode ¸bergeben }
 { 0 (0 Bit) }
     if addmode=0 then
     begin
@@ -1680,7 +1680,7 @@ begin
   if WaitForATN then Exit; { 64NET-Server-Initialisierung }
   GetByte; if TransErr then Exit; { Befehl }
   Filename:=GetFilename; if TransErr then Exit;
-  GetByte; if TransErr then Exit;  { SekundÑradresse }
+  GetByte; if TransErr then Exit;  { Sekund‰radresse }
   if POKELC64(Addr,a,l) then Exit;
   Transfer64NET:=FALSE;
 end;
@@ -1926,7 +1926,7 @@ begin
  *** F *** BC/DE/HL/AF;  Byte + regF                                 OK?
 }
   Prefix:=0; addbytepresent:=FALSE;
-  { ix und iy durch hl ausdrÅcken }
+  { ix und iy durch hl ausdr¸cken }
   Operands2:=UpCaseStr(KillQuotes(Operands));
   i:=Pos('(IX',Operands2); { indirektes IX }
   if i>0 then
@@ -2129,7 +2129,7 @@ indexok:
     end;
   end;
 
-  { In Tabellen erfa·te Mnemos }
+  { In Tabellen erfaﬂte Mnemos }
   if Operands='' then { Addmode 0 }
   begin
     Addmode:=0;
@@ -2404,7 +2404,7 @@ AddmodeOK:
   end;
 addprefixes:
   if ((Mnemo='ADC') or (Mnemo='SBC')) and (prefix>0) and (addbytepresent=FALSE) then Errorstop('ix/iy not allowed here!');
-  if (a=Chr($EB)) and (prefix>0) then Errorstop('ix/iy not allowed here!'); { der Teufel wei·, warum }
+  if (a=Chr($EB)) and (prefix>0) then Errorstop('ix/iy not allowed here!'); { der Teufel weiﬂ, warum }
   if prefix>0 then a:=Chr(prefix)+a;
   if addbytepresent then a:=a+Chr(addbyte);
   AssembleZ80:=a;
@@ -2485,7 +2485,7 @@ begin
       number:=GetNumber(Operand);
       StoreAddresses:=StoreAddresses+Chr(Lo(ocodeIndex))+Chr(Hi(ocodeIndex))+Chr(Lo(number))+Chr(Hi(number));
     end;
-    if Pseudo='AS' then { assemblefor; logische Assemblieradresse Ñndern, }
+    if Pseudo='AS' then { assemblefor; logische Assemblieradresse ‰ndern, }
     begin                            { Ort im Speicher beibehalten }
       PseudoOK:=TRUE;
       unknown:=FALSE;
@@ -2642,7 +2642,7 @@ begin
         until FALSE;
         MacroSourceEnd[Macros]:=MacroSourceIndex;
         Inc(Macros);
-      end else begin { im Pass 2 Åberspringen }
+      end else begin { im Pass 2 ¸berspringen }
         Inc(i);
         repeat
         if UpCaseStr(Copy(ReadLine,1,3))='.EN' then Break;
@@ -2775,7 +2775,7 @@ end;
 
 
 { Main }
-var b1: word; b2: byte;  { fÅr geheime Botschaft }
+var b1: word; b2: byte;  { f¸r geheime Botschaft }
 const s:string=#$F8+#$E9+#$DE+#$DB+#$E0+#$DF+#$D5+#$EF;
 begin
   COPYRIGHT1; COPYRIGHT2; { nur Dummies }
@@ -2787,7 +2787,7 @@ begin
   { Co:=Environ$("6502")+" "+Command$+" " }
 
   Writeln;
-  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.29‡   06-06-98');
+  Writeln('MXASS       6502/65816/Z80 X-Assembler      Version 0.29a   06-06-98');
   Writeln('Copr. 1995-1998 Michael Steil. All rights reserved.');
   Writeln;
 
@@ -2967,7 +2967,7 @@ begin
         GotoXY(6,WhereY-1); Writeln(Right4(currentline));
       end;
       if UpCaseStr(curL)='.EN' then begin
-        if not IgnoreNextEnd then Break; { Ende der Assemblierung, alles nach .en Åberlesen }
+        if not IgnoreNextEnd then Break; { Ende der Assemblierung, alles nach .en ¸berlesen }
         curL:='ANOP'; { Zeile ignorieren }
         IgnoreNextEnd:=False;
       end;
@@ -3096,24 +3096,24 @@ end.
  - Geschwindigkeit!!!                                          290596/300596
  - Ausgabe als PRG, P00, N64                                   290596/300596
  - INCLUDE von ASM-Files                                       300596/010696
- - eigenes 64NET-Wedge (verkÅrztes Wedge fÅr ASS14+)           300596/100896
- - öbertragung an C64 per PC64-Kabel                           290596/180896
- - BRK fÅhrt zu Fehler, da Code 00 auch bedeutet "nicht
-   mîglich"                                                    080796/171196
+ - eigenes 64NET-Wedge (verk¸rztes Wedge f¸r ASS14+)           300596/100896
+ - ‹bertragung an C64 per PC64-Kabel                           290596/180896
+ - BRK f¸hrt zu Fehler, da Code 00 auch bedeutet "nicht
+   mˆglich"                                                    080796/171196
  - Screencode-Text                                             080796/240197
  - INCLUDE von Objectfiles                                     300596/240197
  - Leerzeichen bei .LA                                   CHECKY080397/210597
  - Suchen nach .LO-Dateien und .A18 im ASS-Verzeichnis   CHECKY080397/210597
  - Label und Mnemo in einer Zeile                              220597/220597
  - Z80-Assembler                                               191196/290597
- - Pseudo-Statements mÅssen auch in Makros erlaubt sein!       191196/300597
+ - Pseudo-Statements m¸ssen auch in Makros erlaubt sein!       191196/300597
  - Makros in Z80-Code                                          300597/300597
- - Unterstrich _ mu· in Labelnamen erlaubt sein                060497/170897
+ - Unterstrich _ muﬂ in Labelnamen erlaubt sein                060497/170897
  - Bugs bei Namen mit ".."                                     300597/050398
  - .start-Pseudo-Opcode, um Einsprungsadresse festzulegen      300596/060398
  - * = aktuelle Position                                       180897/150398
  - .BR & DS > 255                                              170897/150398
- - ÅberprÅfen, wie der Assembler auf leere Makros reagiert     160897/170398
+ - ¸berpr¸fen, wie der Assembler auf leere Makros reagiert     160897/170398
  - Bedingtes Assemblieren mit .if                              280597/170398
  - Abbruch bei Transfer                                  CHECKY080397/210598
  - GEOS!                                                       210597/200598
@@ -3121,28 +3121,28 @@ end.
 ****************************************************************************
  geplante Erweiterungen:
 
- - lokale Labels kînnen mittels ".la" definiert werden, was nicht
-   richtig funktioniert, da lokale Labels nach Grî·e sortiert sein mÅssen
-   (-> bei Sprungmarken immer gewÑhrleistet, da RÅckwÑrtsassemblierung
-   nicht mîglch (siehe "Base error!"))
-   Abhilfe: .la Òlabel=... mu· zu Fehler fÅhren                       290596
+ - lokale Labels kˆnnen mittels ".la" definiert werden, was nicht
+   richtig funktioniert, da lokale Labels nach Grˆﬂe sortiert sein m¸ssen
+   (-> bei Sprungmarken immer gew‰hrleistet, da R¸ckw‰rtsassemblierung
+   nicht mˆglch (siehe "Base error!"))
+   Abhilfe: .la ±label=... muﬂ zu Fehler f¸hren                       290596
  - Ausgabe als D64, C64 und Aufruf                                    290596
  - Starten eines Emulators/von 64NET                                  290596
- - Zeichenumsetzung bei P00-Dateien nîtig: "-" wird zu "_"            010696
+ - Zeichenumsetzung bei P00-Dateien nˆtig: "-" wird zu "_"            010696
  - Punkt vor Strich!                                                  080796
  - End-of-Transmission! Kein Absturz des C64-Wedge-Programms          180896
  - X-Debugger                                                         180896
  - Spaces bei Rechnungen rausfiltern                                  191196
  - Synchronisationsfehler erkennen                                    260197
- - Flexible Port-Angabe fÅr PC64 UND 64NET per Parameter              090397
+ - Flexible Port-Angabe f¸r PC64 UND 64NET per Parameter              090397
  - mehrere Bases; Base<>Position im Speicher                     HOOGO210597
  - Linken von Libraries/Prozessor-Emulatoren                          210597
  - Transfer von 0 Bytes abfangen!                                     210597
  - Bedingtes Assemblieren mit .if                                     280597
- - Aufruf eines externen öbertragungsprogramms                        300597
+ - Aufruf eines externen ‹bertragungsprogramms                        300597
  - Einheitlichere Kommandozeile                                       300597
- - ausfÅhrliche Hilfestellung als Overlay                             300597
- - Alle Bildschirmausgaben au·er Line ??/?? nach STDOUT               300597
+ - ausf¸hrliche Hilfestellung als Overlay                             300597
+ - Alle Bildschirmausgaben auﬂer Line ??/?? nach STDOUT               300597
  - alles, was nach den Makros entdeckt wird (DC, EQU) fehlt in SHOW   160897
  - jmp.l                                                              160897
  - asl a                                                              160897
@@ -3151,15 +3151,15 @@ end.
  - DC A'ASCII'                                                        170897
  - GB Z80                                                             180897
  - '' statt ""                                                        180897
- - #define fÅr Makros                                                 180897
+ - #define f¸r Makros                                                 180897
  - Reassembler                                                        180897
  - Sharewareversion: Sonderbyte nach jedem RTS                        170398
  - Alternative zu .petscii, mit Sachen wie {orange}                   170398
- - Auswerten von AusdrÅcken wie >,<,!,& (Boole)                       170398
+ - Auswerten von Ausdr¸cken wie >,<,!,& (Boole)                       170398
  - Zeilenanzeige korrekt                                        CHECKY130298
  - SHOW bei Makros                                                    190598
  - Mnemos an Position 1                                          SOREX210598
- - Reihenfolge Code/Daten beim Transfer Ñndern!                  SOREX210598
+ - Reihenfolge Code/Daten beim Transfer ‰ndern!                  SOREX210598
  - Offset<=Offset                                                SOREX210598
  - ERRORLEVEL                                                         270598
 >let it print the real line# instead of the physical opcode line#
