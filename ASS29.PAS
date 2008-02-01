@@ -371,7 +371,8 @@ var SeF, OfF: word;
 begin
   Filename:=Filename+#0;
   SeF:=Seg(Filename); OfF:=Ofs(Filename)+1;
-  asm
+  WriteLn("ERROR: asm!"): Halt;
+{  asm
     push ds
     mov ax, SeF
     mov ds, ax
@@ -386,7 +387,7 @@ begin
     mov @Result, TRUE
 @@FindEnd:
     pop ds
-  end;
+  end;}
 end;
 
 { Funktionen/Prozeduren }
@@ -560,7 +561,8 @@ var SegA, OfsA: word;
     b: byte;
 begin
   SegA:=Seg(A); OfsA:=Ofs(A)+1; LenA:=Length(A);
-  asm
+  WriteLn("ERROR: asm!"): Halt;
+{  asm
     push ds
     mov ax, SegA
     mov ds, ax
@@ -587,7 +589,7 @@ begin
     stosb
     loop @@petloop
     pop ds
-  end;
+  end;}
   SPetscii:=A;
 end;
 
@@ -598,7 +600,8 @@ var SegA, OfsA: word;
     b: byte;
 begin
   SegA:=Seg(A); OfsA:=Ofs(A)+1; LenA:=Length(A);
-  asm
+  WriteLn("ERROR: asm!"): Halt;
+(*  asm
     push ds
     mov ax, SegA
     mov ds, ax
@@ -646,7 +649,7 @@ begin
     stosb
     loop @@scrloop
     pop ds
-  end;
+  end;*)
   SScrCode:=A;
 end;
 
@@ -883,7 +886,8 @@ begin
   end else begin
     SText:=Seg(MacroSourceText[Num]); OText:=Ofs(MacroSourceText[Num])+MacroSourceIndex;
     Len:=MAXMACROLENGTH-MacroSourceIndex;
-    asm
+    WriteLn("ERROR: asm!"): Halt;
+{    asm
       mov ax, SText
       mov es, SText
       mov di, OText
@@ -892,7 +896,7 @@ begin
       repnz scasb
       mov EndDI, di
       mov Len, cx
-    end;
+    end;}
     S[0]:=Chr(EndDI-OText-1);
     Move(Ptr(SText,OText)^,Ptr(Seg(S),Ofs(S)+1)^,Ord(S[0]));
     Inc(MacroSourceIndex,EndDI-OText);
@@ -1421,7 +1425,8 @@ begin
   end else begin
     SText:=Seg(SourceText^); OText:=Ofs(SourceText^)+SourceIndex;
     Len:=SOURCEMEM-SourceIndex;
-    asm
+    WriteLn("ERROR: asm!"): Halt;
+{    asm
       mov ax, SText
       mov es, SText
       mov di, OText
@@ -1430,7 +1435,7 @@ begin
       repnz scasb
       mov EndDI, di
       mov Len, cx
-    end;
+    end;}
     S[0]:=Chr(EndDI-OText-1);
     Move(Ptr(SText,OText)^,Ptr(Seg(S),Ofs(S)+1)^,Ord(S[0]));
     Inc(SourceIndex,EndDI-OText);
@@ -1439,6 +1444,7 @@ begin
 end;
 
 
+(* DISABLED 64NET AND PC64 CODE
 {
  ***** 64NET-Routinen (C) MIST
  27.12.1995 SendByte
@@ -1865,6 +1871,7 @@ begin
   if PC64SendByte(A) then Exit;
   PC64SYS:=FALSE;
 end;
+*)
 
 function AssembleZ80(Line: string): string;
 label AddmodeOK,addprefixes,indexok;
