@@ -160,9 +160,9 @@ typedef unsigned short uint16_t;
 
 #define PLUSMINUS       "+-"
 
-#define SEP             "\0\001\002\003\004\005\006\007\b\t\n\013\f\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037 !#&'*+,-./:;=?@[\\]^`{|}~\177"
+#define SEP             "\001\002\003\004\005\006\007\b\t\n\013\f\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037 !#&'*+,-./:;=?@[\\]^`{|}~\177"
 
-#define CALCSEP         "\0\001\002\003\004\005\006\007\b\t\n\013\f\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037!#&'*+,-./:;=?@[\\]^`{|}~\177"
+#define CALCSEP         "\001\002\003\004\005\006\007\b\t\n\013\f\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037!#&'*+,-./:;=?@[\\]^`{|}~\177"
 
 #define KEINRECHENZEICHEN  '\0'
 
@@ -176,9 +176,9 @@ typedef unsigned short uint16_t;
 
 #define BIT24MODES      "\f\016"
 
-#define BYTE2MODES      sprintf(STR1, "%s\013", BIT8MODES)
+#define BYTE2MODES      (BIT8MODES "\013")
 
-#define BYTE3MODES      sprintf(STR3, "%s\025\026", BIT16MODES)
+#define BYTE3MODES      (BIT16MODES "\025\026")
 
 #define BYTE4MODES      BIT24MODES
 
@@ -315,7 +315,6 @@ Static unsigned short i;
 Static uchar    j, ins, ins2;
 Static Char     SwitchParameter[11];
 Static FILE    *OpcodesFile;
-Static uchar    OpcodesHelp[(ADDMODES << 1) + 5];
 Static Char*    CurL;
 Static Char     actMacroName[256];
 Static Char     actMacroOperand[256];
@@ -356,6 +355,7 @@ Trim(Result, S_)
 	Char           *Result;
 	Char           *S_;
 {
+//printf("Trim: '%s'\n", S_);
 	Char            S[256];
 	Char            STR4[256];
 
@@ -422,6 +422,7 @@ Static uchar
 FindAny(Sub, Main)
 	Char           *Sub, *Main;
 {
+//printf("FindAny: Sub='%s', Main='%s'\n", Sub, Main);
 	uchar           l, FORLIM;
 	Char            STR4[256];
 
@@ -1441,6 +1442,7 @@ _LnMnemo:
 		immediate = true;
 		strcpy(STR4, Operand + 1);
 		strcpy(Operand, STR4);
+printf("%d\n", __LINE__);
 		operandFlag = true;
 	} else
 		immediate = false;
@@ -1709,7 +1711,7 @@ ReadLine()
 //printf("%x[%d]\n", SourceText, SourceIndex);
 	if (SourceIndex>=SourceEnd) return "";
 	s = &SourceText[SourceIndex];
-	SourceIndex+=strlen(s);
+	SourceIndex+=strlen(s)+1;
 	return s;
 }
 
@@ -2435,6 +2437,7 @@ Assemble(Result, curL_)
 			strcpy(Pseudo, curL);
 			*Operand = '\0';
 		}
+printf("operand: '%s'\n", Operand);
 		sprintf(STR4, "%.2s", Pseudo);
 		strcpy(Pseudo, UpCaseStr(STR5, STR4));
 		PseudoOK = false;
@@ -2620,6 +2623,7 @@ Assemble(Result, curL_)
 		}
 		if (!strcmp(Pseudo, "LA") || !strcmp(Pseudo, "EQ")) {	/* .la oder .equate */
 			PseudoOK = true;
+printf("operand: '%s'\n", Operand);
 			ins = strpos2(Operand, "=", 1);
 			if (ins == 0)
 				Errorstop("\"=\" expected");
@@ -2998,7 +3002,7 @@ main(argc, argv)
 			currentline = reallinenumber[i];
 			CurL = ReadLine();
 //printf("%x\n", CurL);
-printf("%s\n", CurL);
+printf("'%s'\n", CurL);
 //printf("\n\n\nXX'%c' '%c' '%c'XX\n\n\n\n", CurL[0], CurL[1], CurL[2]);
 			if (*CurL == '\0') break;
 			i++;
