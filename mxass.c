@@ -207,7 +207,7 @@ typedef unsigned short uint16_t;
 #define SAVE_AS_T64 6
 #define SAVE_AS_C64 7
 
-typedef uchar   tSourceText[SOURCEMEM];
+typedef char   tSourceText[SOURCEMEM];
 typedef long    numbertype;
 
 
@@ -316,7 +316,7 @@ Static uchar    j, ins, ins2;
 Static Char     SwitchParameter[11];
 Static FILE    *OpcodesFile;
 Static uchar    OpcodesHelp[(ADDMODES << 1) + 5];
-Static Char     CurL[256];
+Static Char*    CurL;
 Static Char     actMacroName[256];
 Static Char     actMacroOperand[256];
 Static unsigned short help, ArrayScan;
@@ -502,9 +502,8 @@ FindFile(Filename)
 
 
 /* Funktionen/Prozeduren */
-Static Void 
-TrimSourceText(Filename_)
-	Char           *Filename_;
+static int 
+TrimSourceText(char *Filename_, int i)
 {
 	Char            Filename[256];
 	FILE           *actSourcefile;
@@ -519,23 +518,16 @@ TrimSourceText(Filename_)
 	Char           *TEMP;
 	Char            STR7[256];
 	Char            STR9[256];
-	Char            actSourcefile_NAME[_FNSIZE];
 
 	strcpy(Filename, Filename_);
 	actSourcefile = NULL;
-	if (FindFile(Filename) == false) {
+
+	strcpy(SourceFile[SourceFiles], Filename);
+	SourceFiles++;
+	if (!(actSourcefile = fopen(Filename, "r"))) {
 		printf("File \"%s\" not found!\n", Filename);
 		exit(1);
 	}
-	strcpy(SourceFile[SourceFiles], Filename);
-	SourceFiles++;
-	strcpy(actSourcefile_NAME, Filename);
-	if (actSourcefile != NULL)
-		actSourcefile = freopen(actSourcefile_NAME, "r", actSourcefile);
-	else
-		actSourcefile = fopen(actSourcefile_NAME, "r");
-	if (actSourcefile == NULL)
-		_EscIO(FileNotFound);
 	actReallinenumber = 0;
 	NextLineInBuffer = false;
 	do {
@@ -544,16 +536,15 @@ TrimSourceText(Filename_)
 			strcpy(Line, Line2);
 		else {
 			fgets(Line, 256, actSourcefile);
-			TEMP = strchr(Line, '\n');
-			if (TEMP != NULL)
+			if ((TEMP = strchr(Line, '\n')))
+				*TEMP = 0;
+			if ((TEMP = strchr(Line, '\r')))
 				*TEMP = 0;
 		}
 		sprintf(STR5, "%c", SEMICOLON);
 		ins = strpos2(Line, STR5, 1);
 		if (ins > 0) {	/* REMs löschen */
 			Line[ins - 1] = '\0';
-/* p2c: ASS29.PAS, line 425:
- * Note: Modification of string length may translate incorrectly [146] */
 		}
 		/* Zeile mit Label und Mnemo aufspalten */
 		if (*Line != '\0' && Line[0] != ' ' && Line[0] != '\t' &&
@@ -638,7 +629,7 @@ TrimSourceText(Filename_)
 					exit(1);
 				}
 				printf("     Reading include    \"%s\"\n", UpCaseStr(STR6, IncFile));
-				TrimSourceText(IncFile);
+				TrimSourceText(IncFile, i);
 				printf("     Continuing         \"%s\"\n", UpCaseStr(STR9, Filename));
 			} else {
 				if (SourceIndex + strlen(Line) >= SOURCEMEM) {
@@ -646,15 +637,11 @@ TrimSourceText(Filename_)
 					exit(1);
 				}
 				/* Zeile in Quelltextspeicher kopieren */
-				printf("ERROR: Move!\n");
-				exit(1);
-				/*
-				 * Move(Ptr(Seg(Line),Ofs(Line)+1)^,Ptr(Seg(So
-				 * urceText^),Ofs(SourceText^)+SourceIndex)^,L
-				 * ength(Line));
-				 */
+				memcpy(SourceText+SourceIndex, Line, strlen(Line));
+//printf("memcpy(%x, %x, %d)\n", SourceText+SourceIndex, Line, strlen(Line));
+//printf("'%c','%c','%c'\n", Line[0], Line[1], Line[2]);
 				SourceIndex += strlen(Line) + 1;
-				SourceText[SourceIndex - 1] = 0;
+				SourceText[SourceIndex - 1] = 0; //zero terminate
 
 				reallinenumber[i] = actReallinenumber;
 				belongstoFile[i] = SourceFiles - 1;
@@ -665,14 +652,11 @@ TrimSourceText(Filename_)
 				}
 			}
 		}
-	} while (!(P_eof(actSourcefile) && NextLineInBuffer == false));
-	if (actSourcefile != NULL)
-		fclose(actSourcefile);
+	} while (!(feof(actSourcefile) && NextLineInBuffer == false));
+	fclose(actSourcefile);
 	actSourcefile = NULL;
-	SourceFiles--;		/* dem Aufrufer wieder die richtige Ebene
-				 * übergeben */
-	if (actSourcefile != NULL)
-		fclose(actSourcefile);
+	SourceFiles--;		/* dem Aufrufer wieder die richtige Ebene übergeben */
+	return i;
 }
 
 
@@ -1719,21 +1703,14 @@ _LnMnemo:
 
 
 Static Char    *
-ReadLine(Result)
-	Char           *Result;
+ReadLine()
 {
-	printf("ERROR: asm!\n");
-	exit(1);
-	/*
-	 * if SourceIndex>=SourceEnd then begin ReadLine:=''; end else begin
-	 * SText:=Seg(SourceText^); OText:=Ofs(SourceText^)+SourceIndex;
-	 * Len:=SOURCEMEM-SourceIndex; asm mov ax, SText mov es, SText mov
-	 * di, OText mov cx, Len mov al, 0 repnz scasb mov EndDI, di mov Len,
-	 * cx end; S[0]:=Chr(EndDI-OText-1);
-	 * Move(Ptr(SText,OText)^,Ptr(Seg(S),Ofs(S)+1)^,Ord(S[0]));
-	 * Inc(SourceIndex,EndDI-OText); ReadLine:=S; end;
-	 */
-	return Result;
+	char *s;
+//printf("%x[%d]\n", SourceText, SourceIndex);
+	if (SourceIndex>=SourceEnd) return "";
+	s = &SourceText[SourceIndex];
+	SourceIndex+=strlen(s);
+	return s;
 }
 
 
@@ -2992,15 +2969,13 @@ main(argc, argv)
 	}
 	fclose(OpcodesFile);
 
-	printf(" *** Reading sourcecode %c%s%c\n",
-	       QUOTE, UpCaseStr(STR4, ParameterFile), QUOTE);
+	printf(" *** Reading sourcecode \"%s\"\n", ParameterFile);
 
-	i = 0;
 	SourceFiles = 0;
 	SourceIndex = 0;
-	TrimSourceText(ParameterFile);
-	lines = i;
-	reallines = reallinenumber[i - 1];
+	lines = TrimSourceText(ParameterFile, 0);
+//	printf("lines: %d\n", lines);
+	reallines = reallinenumber[lines - 1];
 	SourceEnd = SourceIndex;
 	IgnoreNextEnd = false;
 
@@ -3021,22 +2996,21 @@ main(argc, argv)
 		i = 0;
 		do {
 			currentline = reallinenumber[i];
-			ReadLine(CurL);
-			if (*CurL == '\0')
-				goto _LBreak3;
+			CurL = ReadLine();
+//printf("%x\n", CurL);
+printf("%s\n", CurL);
+//printf("\n\n\nXX'%c' '%c' '%c'XX\n\n\n\n", CurL[0], CurL[1], CurL[2]);
+			if (*CurL == '\0') break;
 			i++;
+#if 0
 			if ((i & 63) == 0 && (Pass != 2 || Show == false)) {
 				printf("WARNING: gotoxy!\n");
 				/* GotoXY(6,WhereY-1); */
 				puts(Right4(STR4, currentline));
 			}
+#endif
 			if (!strcmp(UpCaseStr(STR4, CurL), ".EN")) {
-				if (!IgnoreNextEnd)
-					/*
-					 * Ende der Assemblierung, alles nach
-					 * .en überlesen
-					 */
-					goto _LBreak3;
+				if (!IgnoreNextEnd) break; /* Ende der Assemblierung, alles nach .en überlesen */
 				strcpy(CurL, "ANOP");	/* Zeile ignorieren */
 				IgnoreNextEnd = false;
 			}
@@ -3072,7 +3046,6 @@ main(argc, argv)
 				oldopaddress = opaddress;
 			}
 		} while (true);
-_LBreak3:
 		if (Pass != 2 || Show == false) {
 			printf("WARNING: gotoxy!\n");	/* GotoXY(6,WhereY-1); */
 			puts(Right4(STR4, reallines));
