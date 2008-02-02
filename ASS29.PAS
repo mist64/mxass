@@ -220,8 +220,8 @@ var SourceText : ^tSourceText;
     ocode: array[0..MAXOCODE] of byte;
 { Variablen }
     ASSDirectory: string; { Verzeichnis, in dem sich ASS.EXE befindet }
-    Loads: string[255];
-    StoreAddresses: string[255];
+    Loads: string[255]; {TODO: Must be done with arrays}
+    StoreAddresses: string[255]; {TODO: Must be done with arrays}
     LoadAddress: word;
     Time: word; { TODO absolute $40:$6C;}
     StartTime: word;
@@ -257,7 +257,7 @@ var SourceText : ^tSourceText;
     a: string;
     Macros: word;
     ShowIndex: byte;
-    Header: string[26];
+    Header: string[26];{TODO: must be an array instead; should be local}
 { neu hinzugefügte Variablen }
     i: word;
     j: byte;
@@ -843,6 +843,7 @@ procedure SetLabel (L: string; V: word);
 var help: word;
     ArrayScan: word;
 label Break;
+{TODO: must be an array instead!}
 begin
   if L='*' then begin { Base Address setzen }
     if unknown=TRUE then Errorstop('Base has to be a constant!');
@@ -924,7 +925,7 @@ var MacroNum: word;
     V: string;
     La: string;
     opaddresssaved: word;
-    a,b: string;
+    a,b: string; {TODO: must be done with arrays instead}
     Statement: string;
     Operand, Operand2: string;
     byteword: char;
@@ -1018,7 +1019,7 @@ Break2:
       times:=GetNumber(Operand);
       if unknown then Errorstop('Repeat number has to be a constant!');
       a:='';
-      for i:=1 to times do a:=a+#0;
+      for i:=1 to times do a:=a+#0;{TODO: needs to be done differently}
     end;
     if (Statement='ANOP') or
        (Statement='START') or (Statement='END') or (Statement='KEEP') then
@@ -2733,6 +2734,7 @@ Break5:
         number:=$FFFF;
       end;
       if Length(Loads)+Length(a)+2>254 then Errorstop('Too many files to load!');
+{TODO: Must be done with arrays}
       if Pass=2 then Loads:=Loads+a+#0+Chr(Lo(number))+Chr(Hi(number));
       a:='';
       PseudoOK:=TRUE;
@@ -2824,7 +2826,7 @@ end;
 
 { Main }
 var b1: word; b2: byte;  { für geheime Botschaft }
-const s:string=#$F8+#$E9+#$DE+#$DB+#$E0+#$DF+#$D5+#$EF;
+const s:string=#$F8+#$E9+#$DE+#$DB+#$E0+#$DF+#$D5+#$EF;{TODO: translation bug}
 label CONTINUE;
 label Break, Break2, Break3, Break4;
 begin
@@ -3079,8 +3081,8 @@ Break3:
       Assign(SaveFile,Filename+'P00'); Rewrite(SaveFile,1);
         Header:=SPetscii(Filename);
         Header[0]:=Chr(Length(Header)-1);
-        while Length(Header)<18 do Header:=Header+#0;
-        Header:='C64File'+#0+Header;
+        while Length(Header)<18 do Header:=Header+#0; {TODO: 0 in a string}
+        Header:='C64File'+#0+Header; {TODO: 0 in a string}
         BlockWrite(SaveFile,Startaddress,2);
         BlockWrite(SaveFile,ocode,ocodeIndex);
       Close(SaveFile);
@@ -3088,17 +3090,17 @@ Break3:
     4: { N64 }
     begin
       Assign(SaveFile,Filename+'N64'); Rewrite(SaveFile,1);
-        Header:='C64'+#1+#$82;
+{TODO        Header:='C64'+#1+#$82;}
         BlockWrite(SaveFile,Header,5);
         BlockWrite(SaveFile,Startaddress,2);
         Inc(ocodeIndex,2); BlockWrite(SaveFile,ocodeIndex,2); Dec(ocodeIndex,2);
-        Header:=''; for i:=1 to 22 do; Header:=Header+#0;
+        Header:=''; for i:=1 to 22 do; Header:=Header+#0; {TODO: 0 in a string}
         BlockWrite(SaveFile,Header,22);
         Header:=SPetscii(Filename);
         Header[0]:=Chr(Length(Header)-1);
-        while Length(Header)<17 do Header:=Header+#0;
+        while Length(Header)<17 do Header:=Header+#0; {TODO: 0 in a string}
         BlockWrite(SaveFile,Header,27);
-        Header:=''; for i:=1 to 206 do; Header:=Header+#0;
+        Header:=''; for i:=1 to 206 do; Header:=Header+#0; {TODO: 0 in a string}
         BlockWrite(SaveFile,Header,206);
         BlockWrite(SaveFile,Startaddress,2);
         BlockWrite(SaveFile,ocode,ocodeIndex);
