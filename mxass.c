@@ -118,7 +118,7 @@
             00:11:33:18 ...!
   31.01.08  02:00:00:00 Port to C...
   02.02.08  04:29:00:00 ...
-13:55
+            01:53:00:00 ... (Debugging)
 */
 
 #include <p2c/p2c.h>
@@ -201,8 +201,7 @@ typedef unsigned short uint16_t;
 #define SAVE_AS_T64 5
 #define SAVE_AS_C64 6
 
-typedef char   tSourceText[SOURCEMEM];
-typedef long    numbertype;
+typedef int    numbertype;
 
 
 /* Arrays */
@@ -253,7 +252,7 @@ Static uchar    Z80OPCODECONV[Z80REG816S] = {
 	0, 0x6, 0x8, 0x10, 0x16, 0x18, 0x20, 0x26, 0x28, 0x30, 0x36, 0x38
 };
 
-Static uchar   *SourceText;
+Static char   *SourceText;
 Static unsigned short reallinenumber[MAXLINES + 1];
 Static unsigned short belongstoFile[MAXLINES + 1];
 Static Char     Mnemo[MNEMOS][4];
@@ -269,7 +268,7 @@ Static unsigned short Value[MAXLABELS + 1];
 Static unsigned short LValue[MAXLABELS + 1];
 Static Char     SourceFile[MAXFILES + 1][256];
 Static Char     MacroName[MAXMACROS + 1][MAXNAMELENGTH + 1];
-Static uchar    MacroSourceText[MAXMACROS + 1][MAXMACROLENGTH];
+Static char    MacroSourceText[MAXMACROS + 1][MAXMACROLENGTH];
 Static unsigned short MacroSourceEnd[MAXMACROS + 1];
 Static Char     MacroOperand[MAXMACROS + 1][256];
 Static Char     MacroLabel[MAXMACPARA + 1][MAXNAMELENGTH + 1];
@@ -2820,7 +2819,7 @@ main(argc, argv)
 	SymbolsFile = NULL;
 	SaveFile = NULL;
 	OpcodesFile = NULL;
-	SourceText = (uchar *) Malloc(sizeof(tSourceText));
+	SourceText = (char *) Malloc(SOURCEMEM);
 
 	// TODO: we could re-add this feature from BASIC
 	/* Co:=Environ$("6502")+" "+Command$+" " */
@@ -2976,7 +2975,7 @@ main(argc, argv)
 			currentline = reallinenumber[i];
 			CurL = ReadLine();
 //printf("%x\n", CurL);
-printf("'%s'\n", CurL);
+//printf("'%s'\n", CurL); //DEBUG
 //printf("\n\n\nXX'%c' '%c' '%c'XX\n\n\n\n", CurL[0], CurL[1], CurL[2]);
 			if (*CurL == '\0') break;
 			i++;
@@ -3066,7 +3065,7 @@ printf("'%s'\n", CurL);
 	}
 	if (Symbols == true) {
 		printf("Saving symbols...");
-		sprintf(STR7, "%sSYM", Filename);
+		sprintf(STR7, "%s.sym", Filename);
 		strcpy(SymbolsFile_NAME, STR7);
 		if (SymbolsFile != NULL)
 			SymbolsFile = freopen(SymbolsFile_NAME, "w", SymbolsFile);
