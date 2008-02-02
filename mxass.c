@@ -1,7 +1,3 @@
-/* Output from p2c, the Pascal-to-C translator */
-/* From input file "ASS29.PAS" */
-
-
 /*
   19.04.96: 01:06:23:34
   20.04.96: 01:07:35:17
@@ -120,11 +116,9 @@
             00:20:45:82 multiple bases...
   06.06.98  00:44:35:69 ...
             00:11:33:18 ...!
+  31.01.08  02:00:00:00 Port to C...
+  02.02.08  04:29:00:00 ...
 */
-
-/*$G+*/
-/*$M 65520, 65536, 655360*/
-
 
 #include <p2c/p2c.h>
 
@@ -3322,7 +3316,3 @@ main(argc, argv)
  - Bug: .text ".;" -> ; wird als Kommentar erkannt
 
 */
-
-
-
-/* End. */
