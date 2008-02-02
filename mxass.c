@@ -659,8 +659,6 @@ Static Void
 Errorstop(S)
 	Char           *S;
 {
-	printf("WARNING: gotoxy!\n");
-	/* GotoXY(1,WhereY-1); */
 	printf("Line %u: %s\n", currentline, S);
 	puts(CurL);
 	exit(1);
@@ -1058,24 +1056,16 @@ _LBreak:	;
 
 
 Static Char    *
-MacroReadLine(Result, Num)
-	Char           *Result;
+MacroReadLine(Num)
 	unsigned short  Num;
 {
-	printf("ERROR: asm4!\n");
-	exit(1);
-	/*
-	 * if MacroSourceIndex>=MacroSourceEnd[Num] then begin
-	 * MacroReadLine:=''; end else begin
-	 * SText:=Seg(MacroSourceText[Num]);
-	 * OText:=Ofs(MacroSourceText[Num])+MacroSourceIndex;
-	 * Len:=MAXMACROLENGTH-MacroSourceIndex; asm mov ax, SText mov es,
-	 * SText mov di, OText mov cx, Len mov al, 0 repnz scasb mov EndDI,
-	 * di mov Len, cx end; S[0]:=Chr(EndDI-OText-1);
-	 * Move(Ptr(SText,OText)^,Ptr(Seg(S),Ofs(S)+1)^,Ord(S[0]));
-	 * Inc(MacroSourceIndex,EndDI-OText); MacroReadLine:=S; end;
-	 */
-	return Result;
+	char *s;
+//printf("macro %d: %x[%d/%d]\n", Num, MacroSourceText[Num], MacroSourceIndex, MacroSourceEnd[Num]);
+	if (MacroSourceIndex>=MacroSourceEnd[Num]) return "";
+	s = &MacroSourceText[Num][MacroSourceIndex];
+//printf("strlen(s) = %d\n", strlen(s));
+	MacroSourceIndex+=strlen(s)+1;
+	return s;
 }
 
 
@@ -1085,6 +1075,7 @@ int Assemble(char* Result, char* curL);
 int
 AssembleMacro(char *a, char *Line_)
 {
+	char *curL;
 	Char            Line[256];
 	unsigned short  MacroNum;
 	Char            Mask[256];
@@ -1092,8 +1083,6 @@ AssembleMacro(char *a, char *Line_)
 	Char            V[256];
 	Char            La[256];
 	unsigned short  opaddresssaved;
-//	Char            a[256], b[256];	/* TODO: must be done with arrays
-//					 * instead */
 	int aLen, bLen;
 	char b[255];
 	Char            Statement[256];
@@ -1349,15 +1338,14 @@ _LBreak3:	;
 	opaddresssaved = opaddress;
 	MacroSourceIndex = 0;
 	do {
-		MacroReadLine(CurL, MacroNum);
-		if (*CurL == '\0')
-			goto _LBreak4;
+		CurL = MacroReadLine(MacroNum);
+		if (*CurL == '\0') break;
+printf("%s\n", CurL);
 		bLen = Assemble(b, CurL);
 		memcpy(a, b, bLen);
 		aLen += bLen;
 		opaddress += bLen;	/* Speicherpos. weiterzählen! */
 	} while (true);
-_LBreak4:
 	opaddress = opaddresssaved;
 	/* MakroLabels löschen, da sie nicht mehr gelten */
 	for (i = 0; i <= MAXMACPARA; i++) {	/* ! nötig? */
@@ -2412,14 +2400,14 @@ Assemble(char *a, char *curL_)
 {
 	int aLen;
 	Char aa[256];
-	Char            curL[256];
+	Char            *curL;
 	Char            Operand2[256], b[256];
 	Char            STR4[256];
 	Char            STR5[256];
 	unsigned short  FORLIM;
 	Char            STR6[256];
 
-	strcpy(curL, curL_);
+	curL = curL_;
 	aLen = 0;
 	if (curL[0] == '.') {	/* Pseudo-Opcode */
 		strcpy(STR4, curL + 1);
@@ -2704,21 +2692,18 @@ Assemble(char *a, char *curL_)
 				i++;
 				MacroSourceIndex = 0;
 				do {
-					ReadLine(curL);
+					curL = ReadLine();
+//printf("line read: '%s'\n", curL);
 					if (*curL == '\0')
 						Errorstop("End of macro expected!");
 					sprintf(STR5, "%.3s", curL);
 					if (!strcmp(UpCaseStr(STR4, STR5), ".EN"))
 						goto _LBreak4;
 					/* Zeile in Makro-Quelltext kopieren */
-					printf("ERROR: Move!\n");
-					exit(1);
-					/*
-					 * Move(Ptr(Seg(CurL),Ofs(CurL)+1)^,
-					 * Ptr(Seg(MacroSourceText[Macros]),
-					 * Ofs(MacroSourceText[Macros])+MacroS
-					 * ourceIndex)^, Length(CurL));
-					 */
+//printf("%x, %d)\n", &MacroSourceText[Macros][0], MacroSourceIndex);
+					memcpy(&MacroSourceText[Macros][MacroSourceIndex], curL, strlen(curL));
+//printf("'%s'\n", curL);
+//printf("memcpy(%x, %x, %d)\n", &MacroSourceText[Macros][SourceIndex], curL, strlen(curL));
 					MacroSourceIndex += strlen(curL) + 1;
 					MacroSourceText[Macros][SourceIndex - 1] = 0;
 					i++;
@@ -2729,7 +2714,7 @@ Assemble(char *a, char *curL_)
 			} else {/* im Pass 2 überspringen */
 				i++;
 				do {
-					sprintf(STR4, "%.3s", ReadLine(STR6));
+					sprintf(STR4, "%.3s", ReadLine());
 					if (!strcmp(UpCaseStr(STR5, STR4), ".EN"))
 						goto _LBreak5;
 					i++;
@@ -2746,7 +2731,7 @@ Assemble(char *a, char *curL_)
 			number2 = GetNumber(strcpy(STR5, Operand + ins));
 			if (number != number2) {
 				do {
-					ReadLine(curL);
+					curL = ReadLine();
 					if (*curL == '\0')
 						Errorstop("End if expected!");
 				} while (strcmp(UpCaseStr(STR5, (sprintf(STR4, "%.3s", curL), STR4)),
@@ -2758,7 +2743,7 @@ Assemble(char *a, char *curL_)
 						 * Kommentar */
 			PseudoOK = true;
 			do {
-				ReadLine(curL);
+				curL = ReadLine();
 				if (*curL == '\0')
 					Errorstop("End if expected!");
 			} while (strcmp(UpCaseStr(STR5, (sprintf(STR4, "%.3s", curL), STR4)),
@@ -2983,7 +2968,6 @@ main(argc, argv)
 	Labels = 0;
 	for (Pass = 1; Pass <= 2; Pass++) {
 		printf(" *** Pass%d\n", Pass);
-		printf("Line     /%u\n", reallines);
 		ocodeIndex = 0;
 		opaddress = 0;
 		AsciiFlag = 1;
@@ -3002,13 +2986,6 @@ main(argc, argv)
 //printf("\n\n\nXX'%c' '%c' '%c'XX\n\n\n\n", CurL[0], CurL[1], CurL[2]);
 			if (*CurL == '\0') break;
 			i++;
-#if 0
-			if ((i & 63) == 0 && (Pass != 2 || Show == false)) {
-				printf("WARNING: gotoxy!\n");
-				/* GotoXY(6,WhereY-1); */
-				puts(Right4(STR4, currentline));
-			}
-#endif
 			if (!strcmp(UpCaseStr(STR4, CurL), ".EN")) {
 				if (!IgnoreNextEnd) break; /* Ende der Assemblierung, alles nach .en überlesen */
 				strcpy(CurL, "ANOP");	/* Zeile ignorieren */
@@ -3046,10 +3023,6 @@ main(argc, argv)
 				oldopaddress = opaddress;
 			}
 		} while (true);
-		if (Pass != 2 || Show == false) {
-			printf("WARNING: gotoxy!\n");	/* GotoXY(6,WhereY-1); */
-			puts(Right4(STR4, reallines));
-		}		/* fertig! */
 	}
 
 	printf("\nAssembly O.K. (%5.2f sec), $%s-$%s\n",
