@@ -158,7 +158,6 @@
 #define NUL             '\0'
 
 #define PLUSMINUS       "+-"
-#define SWITCHES        "-/"
 
 #define SEP             "\0\001\002\003\004\005\006\007\b\t\n\013\f\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037 !#&'*+,-./:;=?@[\\]^`{|}~\177"
 
@@ -198,6 +197,14 @@
 #define OPCODESFILELENGTH  5350
 #define OPCODESFILELENGTHZ80  546
 
+#define SAVE_AS_NONE 0
+#define SAVE_AS_OCODE 1
+#define SAVE_AS_PRG 2
+#define SAVE_AS_P00 3
+#define SAVE_AS_N64 4
+#define SAVE_AS_D64 5
+#define SAVE_AS_T64 6
+#define SAVE_AS_C64 7
 
 typedef uchar   tSourceText[SOURCEMEM];
 typedef long    numbertype;
@@ -274,8 +281,6 @@ Static Char     MacroLabel[MAXMACPARA + 1][MAXNAMELENGTH + 1];
 Static unsigned short MacroValue[MAXMACPARA + 1];
 Static uchar    ocode[MAXOCODE + 1];
 /* Variablen */
-Static Char     ASSDirectory[256];
- /* Verzeichnis, in dem sich ASS.EXE befindet */
 Static Char     Loads[256];	/* TODO: Must be done with arrays */
 Static Char     StoreAddresses[256];	/* TODO: Must be done with arrays */
 Static unsigned short LoadAddress, Time;	/* TODO absolute $40:$6C; */
@@ -292,9 +297,8 @@ Static boolean  unknown;
 Static uchar    AsciiFlag, Cpu;
 Static boolean  CpuIllegal;
 Static unsigned short opaddress, oldopaddress, startjumpaddress, currentline;
-Static Char     ParameterFile[256];
 Static Char     Filename[256];
-Static uchar    Transfer, SaveAs;
+Static uchar    SaveAs;
 Static Char     SaveName[256];
 Static boolean  Symbols;
 Static unsigned short SourceFiles, lines, reallines;
@@ -319,7 +323,6 @@ Static Char     actMacroOperand[256];
 Static unsigned short help, ArrayScan;
 Static boolean  ArrayFound, PseudoOK;
 Static unsigned short ocodeIndex, SourceIndex, SourceEnd, MacroSourceIndex;
-Static boolean  SwitchOK;
 Static FILE    *SaveFile;
 Static FILE    *SymbolsFile;
 Static boolean  SizeAccu, SizeIndex;
@@ -328,7 +331,6 @@ Static boolean  IgnoreNextEnd;
 
 Static boolean  TransErr;
 
-Static boolean  WaitForKey;
 Static Char     OpcodesFile_NAME[_FNSIZE];
 Static Char     SaveFile_NAME[_FNSIZE];
 Static Char     SymbolsFile_NAME[_FNSIZE];
@@ -491,7 +493,7 @@ FindFile(Filename)
 	Char           *Filename;
 {
 	printf("ERROR: asm!\n");
-	_Escape(0);
+	exit(1);
 	/*
 	 * Filename:=Filename+#0; SeF:=Seg(Filename); OfF:=Ofs(Filename)+1;
 	 * asm push ds mov ax, SeF mov ds, ax mov dx, OfF mov ah, 4Eh mov cx,
@@ -525,7 +527,7 @@ TrimSourceText(Filename_)
 	actSourcefile = NULL;
 	if (FindFile(Filename) == false) {
 		printf("File \"%s\" not found!\n", Filename);
-		_Escape(0);
+		exit(1);
 	}
 	strcpy(SourceFile[SourceFiles], Filename);
 	SourceFiles++;
@@ -635,7 +637,7 @@ TrimSourceText(Filename_)
 				if (!strcmp(UpCaseStr(STR5, Filename), UpCaseStr(STR6, IncFile))) {
 					printf("Recursive \".include\" in file %s, line %u!\n",
 					       UpCaseStr(STR9, Filename), actReallinenumber);
-					_Escape(0);
+					exit(1);
 				}
 				printf("     Reading include    \"%s\"\n", UpCaseStr(STR6, IncFile));
 				TrimSourceText(IncFile);
@@ -643,11 +645,11 @@ TrimSourceText(Filename_)
 			} else {
 				if (SourceIndex + strlen(Line) >= SOURCEMEM) {
 					printf("Sourcetext too big!\n");
-					_Escape(0);
+					exit(1);
 				}
 				/* Zeile in Quelltextspeicher kopieren */
 				printf("ERROR: Move!\n");
-				_Escape(0);
+				exit(1);
 				/*
 				 * Move(Ptr(Seg(Line),Ofs(Line)+1)^,Ptr(Seg(So
 				 * urceText^),Ofs(SourceText^)+SourceIndex)^,L
@@ -661,7 +663,7 @@ TrimSourceText(Filename_)
 				i++;
 				if (i > MAXLINES) {
 					printf("Too many lines!\n");
-					_Escape(0);
+					exit(1);
 				}
 			}
 		}
@@ -684,7 +686,7 @@ Errorstop(S)
 	/* GotoXY(1,WhereY-1); */
 	printf("Line %u: %s\n", currentline, S);
 	puts(CurL);
-	_Escape(0);
+	exit(1);
 }
 
 
@@ -762,7 +764,7 @@ SPetscii(Result, A)
 {
 	/* wandelt String von ASCII nach PETSCII */
 	printf("ERROR: asm!\n");
-	_Escape(0);
+	exit(1);
 	/*
 	 * SegA:=Seg(A); OfsA:=Ofs(A)+1; LenA:=Length(A); asm push ds mov ax,
 	 * SegA mov ds, ax mov es, ax mov si, OfsA mov di, si mov cl, LenA
@@ -782,7 +784,7 @@ SScrCode(Result, A)
 {
 	/* wandelt Str PETSCII nach Screencode */
 	printf("ERROR: asm!\n");
-	_Escape(0);
+	exit(1);
 	/*
 	 * SegA:=Seg(A); OfsA:=Ofs(A)+1; LenA:=Length(A); asm push ds mov ax,
 	 * SegA mov ds, ax mov es, ax mov si, OfsA mov di, si mov cl, LenA
@@ -1089,7 +1091,7 @@ MacroReadLine(Result, Num)
 	unsigned short  Num;
 {
 	printf("ERROR: asm!\n");
-	_Escape(0);
+	exit(1);
 	/*
 	 * if MacroSourceIndex>=MacroSourceEnd[Num] then begin
 	 * MacroReadLine:=''; end else begin
@@ -1723,7 +1725,7 @@ ReadLine(Result)
 	Char           *Result;
 {
 	printf("ERROR: asm!\n");
-	_Escape(0);
+	exit(1);
 	/*
 	 * if SourceIndex>=SourceEnd then begin ReadLine:=''; end else begin
 	 * SText:=Seg(SourceText^); OText:=Ofs(SourceText^)+SourceIndex;
@@ -1736,435 +1738,6 @@ ReadLine(Result)
 	return Result;
 }
 
-
-/* DISABLED 64NET AND PC64 CODE
-{
- ***** 64NET-Routinen (C) MIST
- 27.12.1995 SendByte
- 28.12.1995 GetByte
- 10.08.1996 Bugfixes, Optimierung
-}
-procedure COPYRIGHT1; assembler;
-asm
- ret
- db '*** The 64NET tranfer routines are (c) copyright 1995 Michael Steil ***';
-end;
-
-procedure InitPort; assembler;
-asm
-  mov al, 0 { "nicht bereit" }
-  mov dx, 0378h
-  out dx, al
-end;
-
-procedure getport; assembler;
-asm
-  mov dx, 0379h
-@@getport1:
-  in al, dx
-  cmp al, ah
-  je @@getport2
-  mov ah, al
-  jmp @@getport1
-@@getport2:
-  xor al, 128
-  mov ah, al
-  shr al, 6
-  and ah, 32
-  shr ah, 3
-  or al, ah
-end;
-
-function WaitForATN: boolean;
-begin
-asm
-  mov @Result,TRUE
-  xor cx,cx
-@@WaitForATN1:
-  dec cx
-  je @end
-  call getport
-  cmp al, 0
-  jne @@WaitForATN1
-  mov al, 128
-  mov dx, 0378h
-  out dx, al
-  mov @Result,FALSE
-@end:
-end;
-end;
-
-function GetByte: byte;
-begin
-  asm
-  mov TransErr, TRUE
-  xor cx,cx
-@@wfcl1:
-  dec cx
-  je @end
-  call getport
-  test al, 4
-  je @@wfcl1    { Auf Clock=1 warten }
-  and al, 3
-  mov bl, al
-  mov al, 10*8  { =%(0)101(0) }
-  mov dx, 0378h
-  out dx, al
-  xor cx,cx
-@@wfcl2:
-  dec cx
-  je @end
-  call getport
-  test al, 4
-  jne @@wfcl2   { Auf Clock=0 warten }
-  and al, 3
-  mov bh, al
-  mov al, 4*8   { =%(0)010(0) }
-  mov dx, 0378h
-  out dx, al
-  xor cx,cx
-@@wfcl3:
-  dec cx
-  je @end
-  call getport
-  test al, 4
-  je @@wfcl3    { Auf Clock=1 warten }
-  and al, 3
-  mov cl, al
-  mov al, 12*8  { =%(0)110(0) }
-  mov dx, 0378h
-  out dx, al
-  xor cx,cx
-@@wfcl4:
-  dec cx
-  je @end
-  call getport
-  test al, 4
-  jne @@wfcl4   { Auf Clock=0 warten }
-  and al, 3
-  mov ch, al
-  mov al, 2*8   { =%(0)001(0) }
-  mov dx, 0378h
-  out dx, al
-  shl ch, 6
-  shl cl, 4
-  shl bh, 2
-  or bl, bh
-  or bl, cl
-  or bl, ch
-  mov @Result, bl
-  mov TransErr, FALSE
-@end:
-  end;
-end;
-
-function GetFilename: string;
-var F: string;
-    l: byte;
-    i: byte;
-begin
-  F:='';
-  l:=GetByte; if TransErr then Exit;
-  if l>0 then
-    for i:=1 to l do
-    begin
-      Filename:=Filename+Chr(GetByte);
-      if TransErr then Exit;
-    end;
-  GetFilename:=F;
-end;
-
-procedure asmsendbyte; assembler;
-asm
-  mov TransErr, TRUE
-  push ax
-  xor cx,cx
-@@wfready1:
-  dec cx
-  je @end
-  call getport
-  cmp al, 4
-  jne @@wfready1
-  pop ax
-  push ax
-  shl al, 4
-  or al, 8
-  dec dx { $0378 }
-  out dx, al
-  xor cx,cx
-@@wfready2:
-  dec cx
-  je @end
-  call getport
-  or al, al
-  jne @@wfready2
-@end:
-  pop ax
-  and al, 0F0h
-  mov dx, 0378h
-  out dx, al
-  mov TransErr, FALSE
-end;
-
-function SendByte(b: byte): boolean;
-begin
-  asm
-    mov al, b
-    call asmsendbyte
-  end;
-  if TransErr then SendByte:=TRUE else SendByte:=FALSE;
-end;
-
-function SendData(a: array of byte; l: byte): boolean;
-var S, O: word;
-begin
-  S:=Seg(a); O:=Ofs(a);
-  asm
-    mov @Result, TRUE
-    push ds
-    mov ax, S
-    mov ds, ax
-    mov si, O
-    mov cl, l
-    mov ch, 0
-@@sendstringloop:
-    lodsb
-    push cx
-    call asmsendbyte
-    pop cx
-    cmp TransErr, TRUE
-    je @end
-    loop @@sendstringloop
-    mov @Result, FALSE
-@end:
-    pop ds
-  end;
-end;
-
-function POKEC64(Addr: word; a: array of byte; l: byte): boolean;
-begin
-  POKEC64:=TRUE;
-  if SendByte($FF) then Exit;
-  if SendByte(1) then Exit;
-  if SendByte(l+1) then Exit;
-  if SendByte(Lo(Addr)) then Exit;
-  if SendByte(Hi(Addr)) then Exit;
-  if SendData(a,l) then Exit;
-  POKEC64:=FALSE;
-end;
-
-function POKELC64(Addr: word; a: array of byte; l: word): boolean;
-var i: word;
-    b: array[0..249] of byte;
-begin
-  POKELC64:=TRUE;
-  i:=0;
-  repeat
-    for j:=0 to 249 do b[j]:=a[i+j];
-    if l-i>=250 then
-    begin
-      if PokeC64(addr+i,b,250) then Exit;
-    end else begin
-      if PokeC64(addr+i,b,l-i) then Exit;
-    end;
-    Inc(i,250);
-  until i>=l;
-  POKELC64:=FALSE;
-end;
-
-function Transfer64NET(addr: word; a: array of byte; l: word): boolean;
-var Filename: string;
-begin
-  Transfer64NET:=TRUE;
-  if WaitForATN then Exit; { 64NET-Server-Initialisierung }
-  GetByte; if TransErr then Exit; { Befehl }
-  Filename:=GetFilename; if TransErr then Exit;
-  GetByte; if TransErr then Exit;  { Sekundäradresse }
-  if POKELC64(Addr,a,l) then Exit;
-  Transfer64NET:=FALSE;
-end;
-
-function SYS(Addr: word; A,X,Y: byte): boolean;
-begin
-  SYS:=TRUE;
-  if SendByte($F8) then Exit;
-  if SendByte(Lo(Addr)) then Exit;
-  if SendByte(Hi(Addr)) then Exit;
-  if SendByte(A) then Exit;
-  if SendByte(X) then Exit;
-  if SendByte(Y) then Exit;
-  if SendByte(0) then Exit;
-  SYS:=FALSE;
-end;
-
-{
-procedure EndOfTransmission(Status: byte);
-begin
-  SendByte($FE);
-  SendByte(Status);
-end;
-}
-
-{
- ***** PC64-Routinen (C) MIST
- 17.,18.08.1996
-}
-procedure COPYRIGHT2; assembler;
-asm
- ret
- db '*** The PC64 cable tranfer routines are (c) copyright 1996 Michael Steil ***'
-end;
-
-
-function PC64SendByte(b: byte): boolean;
-begin
-asm
-    mov @result, TRUE
-    mov ah, b
-    mov dx, PORT+1
-    xor cx,cx
-@wfC64b:
-    dec cx
-    je @end { timeout }
-    in al, dx
-    and al, 128
-    jne @wfC64b  { auf Clock = 0 warten }
-
-    dec dx
-    mov al, 128
-    out dx, al { NMI vorbereiten }
-
-    mov al, ah
-    and al, 15
-    out dx, al { Lo-Nybble senden, NMI=1 }
-
-    inc dx
-    xor cx,cx
-@wfC64a:
-    dec cx
-    je @end { timeout }
-    in al, dx
-    and al, 128
-    je @wfC64a  { auf Clock = 1 warten }
-
-    dec dx
-    mov al, 128
-    out dx, al { NMI vorbereiten }
-    shr ax, 12
-    out dx, al { Hi-Nybble senden, NMI=1 }
-    mov @result, FALSE
-@end:
-end;
-end;
-
-function PC64SendData(S: array of byte; l: byte): boolean;
-var SSeg, SOfs: word;
-begin
-  SSeg:=Seg(S); SOfs:=Ofs(S);
-  asm
-    mov @Result, TRUE
-    push ds
-
-    mov cl, l
-    mov ch, 0
-    mov si, SOfs
-    mov ax, SSeg
-    mov ds, ax
-    mov dx, PORT+1
-@SendLoop:
-    push cx
-    lodsb
-    mov ah, al
-    mov bl, al
-    and bl, 15 { Lo-Nybble nach bl }
-    xor cx,cx
-@wfC64b:
-    dec cx
-    jne @ntimeout
-@timeout:
-    pop cx
-    jmp @end
-@ntimeout:
-    in al, dx
-    and al, 128
-    jne @wfC64b  { auf Clock = 0 warten }
-
-    dec dx
-    mov al, 128
-    out dx, al { NMI vorbereiten }
-
-    mov al, bl
-    out dx, al { Lo-Nybble senden, NMI=1 }
-
-    shr ah, 4 { Hi-Nybble nach ah }
-
-    inc dx
-    xor cx,cx
-@wfC64a:
-    dec cx
-    je @timeout
-    in al, dx
-    and al, 128
-    je @wfC64a  { auf Clock = 1 warten }
-
-    dec dx
-{    mov al, 128  al=128! }
-    out dx, al { NMI vorbereiten }
-    mov al, ah
-    out dx, al { Hi-Nybble senden, NMI=1 }
-    inc dx
-
-    pop cx
-    loop @SendLoop
-    mov @Result, FALSE
-@end:
-    pop ds
-  end;
-end;
-
-
-function PC64POKEC64(Addr: word; a: array of byte; l: byte): boolean;
-begin
-  PC64POKEC64:=TRUE;
-  if PC64SendByte(0) then Exit;
-  if PC64SendByte(l) then Exit;
-  if PC64SendByte(Lo(Addr)) then Exit;
-  if PC64SendByte(Hi(Addr)) then Exit;
-  PC64SendData(a,l);
-  PC64POKEC64:=FALSE;
-end;
-
-function PC64POKELC64(Addr: word; a: array of byte; l: word): boolean;
-var i: word;
-    b: array[0..249] of byte;
-begin
-  PC64POKELC64:=TRUE;
-  i:=0;
-  repeat
-    for j:=0 to 249 do b[j]:=a[i+j];
-    if l-i>=250 then
-    begin
-      if PC64PokeC64(addr+i,b,250) then Exit;
-    end else begin
-      if PC64PokeC64(addr+i,b,l-i) then Exit;
-    end;
-    Inc(i,250);
-  until i>=l;
-  PC64POKELC64:=FALSE;
-end;
-
-function PC64SYS(Addr: word; A,X,Y: byte): boolean;
-begin
-  PC64SYS:=TRUE;
-  if PC64SendByte(1) then Exit;
-  if PC64SendByte(Lo(Addr)) then Exit;
-  if PC64SendByte(Hi(Addr)) then Exit;
-  if PC64SendByte(X) then Exit;
-  if PC64SendByte(Y) then Exit;
-  if PC64SendByte(A) then Exit;
-  PC64SYS:=FALSE;
-end;
-*/
 
 Static Char    *
 AssembleZ80(Result, Line_)
@@ -2958,8 +2531,7 @@ Assemble(Result, curL_)
 			unknown = false;
 			number = GetNumber(Operand);
 			startjumpaddress = number;
-			Transfer |= 128;	/* bei Transfer Start
-						 * einschalten */
+			//TODO: was used for transfer; can be reused for emulator snapshots
 		}
 		if (!strcmp(Pseudo, "SA")) {	/* store at */
 			PseudoOK = true;
@@ -3006,7 +2578,7 @@ Assemble(Result, curL_)
 						 * benutzt */
 			}
 			strcpy(SaveName, Operand);
-			SaveAs = 2;
+			SaveAs = SAVE_AS_PRG;
 		}
 		if (!strcmp(Pseudo, "BR") || !strcmp(Pseudo, "DS")) {	/* .br oder .ds (define
 									 * storage) */
@@ -3166,7 +2738,7 @@ Assemble(Result, curL_)
 						goto _LBreak4;
 					/* Zeile in Makro-Quelltext kopieren */
 					printf("ERROR: Move!\n");
-					_Escape(0);
+					exit(1);
 					/*
 					 * Move(Ptr(Seg(CurL),Ofs(CurL)+1)^,
 					 * Ptr(Seg(MacroSourceText[Macros]),
@@ -3265,93 +2837,18 @@ Assemble(Result, curL_)
 _Lcodeok:
 	return strcpy(Result, a);
 }
-/* p2c: ASS29.PAS, line 2829:
- * Warning: Expected a semicolon, found 'F8' [227] */
-
-
-/* TRANSFER DISABLED
-function DoTransfer: boolean;
-var index, index2, address, copylength: word;
-    CStoreAddresses: string[254];
-    ocodecopy: array[0..MAXOCODE] of byte;
-begin
-  DoTransfer:=TRUE;
-  if WaitForKey then begin
-    Write('Press any key to start transfer...');
-    repeat until KeyPressed;
-    Writeln;
-  end;
-  CStoreAddresses:=StoreAddresses;
-  repeat
-    index:=Ord(CStoreAddresses[1])+Ord(CStoreAddresses[2]) shl 8;
-    address:=Ord(CStoreAddresses[3])+Ord(CStoreAddresses[4]) shl 8;
-    CStoreAddresses:=Copy(CStoreAddresses,5,255);
-    if Length(CStoreAddresses)>0 then begin
-      index2:=Ord(CStoreAddresses[1])+Ord(CStoreAddresses[2]) shl 8;
-    end else begin
-      index2:=ocodeIndex;
-    end;
-    copylength:=index2-index;
-    if copylength>0 then
-    begin
-      for i:=0 to copylength-1 do ocodecopy[i]:=ocode[index+i];
-      case Transfer and 127 of
-      1: { 64NET } if Transfer64NET(address, ocodecopy, copylength) then Exit;
-      2: { PC64 }  if PC64POKELC64(address, ocodecopy, copylength) then Exit;
-      end;
-    end;
-  until CStoreAddresses='';
-  while Loads<>'' do
-  begin
-    j:=Pos(#0,Loads);
-    Filename:=Copy(Loads,1,j-1);
-    LoadAddress:=Ord(Loads[j+1])+Ord(Loads[j+2]) shl 8;
-    Loads:=Copy(Loads,j+3,255);
-    if FindFile(Filename)=FALSE then
-    begin
-      Filename:=ASSDirectory+Filename;
-      if FindFile(Filename)=FALSE then
-      begin
-        Writeln; Writeln('File "',Filename,'" not found!');
-        Halt;
-      end;
-    end;
-    Write(Filename,' ');
-    Assign(SaveFile,Filename); Reset(SaveFile,1);
-    BlockRead(SaveFile,i,2);
-    if LoadAddress<>$FFFF then i:=LoadAddress;
-    repeat
-      BlockRead(SaveFile,ocode,MAXOCODE,BytesRead);
-      if (Transfer and 127)=1 then POKELC64(i,ocode,BytesRead);
-      if (Transfer and 127)=2 then if PC64POKELC64(i,ocode,BytesRead) then Exit;
-      Inc(i,BytesRead);
-    until Eof(SaveFile);
-    Close(SaveFile);
-  end;
-  if (Transfer and 128)>0 then
-  begin
-    Writeln('OK.'); Write('Start...');
-    if startjumpaddress=0 then startjumpaddress:=startaddress;
-    case Transfer and 127 of
-    1: { 64NET } if SYS(startjumpaddress,0,0,0) then Exit;
-    2: { PC64 } if PC64SYS(startjumpaddress,0,0,0) then Exit;
-    end;
-  end;
-  DoTransfer:=FALSE;
-end;
-*/
 
 /* Main */
 Static unsigned short b1;
 Static uchar    b2;		/* für geheime Botschaft */
-Static Char     s[256] = "\004";
+Static Char     s[256] = "\004"; /*TODO: translation bug*/
 
-
-/*TODO: translation bug*/
 main(argc, argv)
 	int             argc;
 	Char           *argv[];
 {
+	Static Char*     ParameterFile;
+	char*	ins;
 	Char            STR2[256];
 	Char            STR4[256];
 	Char            STR5[28];
@@ -3360,33 +2857,17 @@ main(argc, argv)
 	uchar           FORLIM1;
 	Char            STR9[36];
 
-	/* COPYRIGHT1; COPYRIGHT2; { nur Dummies } */
-	/*
-	 * NO TRANSFER InitPort;
-	 */
-
 	PASCAL_MAIN(argc, argv);
 	SymbolsFile = NULL;
 	SaveFile = NULL;
 	OpcodesFile = NULL;
 	SourceText = (uchar *) Malloc(sizeof(tSourceText));
 
-
+	// TODO: we could re-add this feature from BASIC
 	/* Co:=Environ$("6502")+" "+Command$+" " */
 
-	printf("\nMXASS       6502/65816/Z80 X-Assembler      Version 0.29a   06-06-98\n");
-	printf("Copr. 1995-1998 Michael Steil. All rights reserved.\n\n");
-
-	strcpy(ASSDirectory, P_argv[0]);
-	i = strlen(ASSDirectory);
-	do {
-		if (ASSDirectory[i - 1] == '\\') {
-			sprintf(ASSDirectory, "%.*s", i, strcpy(STR2, ASSDirectory));
-			goto _LBreak;
-		}
-		i--;
-	} while (i != 0);
-_LBreak:
+	printf("\nMXASS       6502/65816/Z80 X-Assembler      Version 0.30a   XX-XX-08\n");
+	printf("Copr. 1995-2008 Michael Steil. All rights reserved.\n\n");
 
 	/* geheime Botschaft */
 	if (P_argc == 2 && strlen(strcpy(STR4, P_argv[1])) == 8) {
@@ -3403,161 +2884,90 @@ _LBreak:
 				putchar(a[i - 1] + s[i - 1]);
 			}
 			printf("!\n");
-			_Escape(0);
+			exit(0);
 		}
 	}
+
 	/* Kommandozeile parsen */
-	*ParameterFile = '\0';
-	Transfer = 0;
-	SaveAs = 0;
+	ParameterFile = NULL;
+	SaveAs = SAVE_AS_NONE;
 	Symbols = false;
-	WaitForKey = false;
 	for (i = 1; i < P_argc; i++) {
-		if (*strcpy(STR4, P_argv[i]) == '\0')	/* Continue; */
-			goto _LCONTINUE;
-		sprintf(STR4, "%.1s", strcpy(STR6, P_argv[i]));
-		if (strpos2(SWITCHES, STR4, 1) > 0) {
-			UpCaseStr(SwitchParameter, strcpy(STR7, strcpy(STR8, P_argv[i]) + 1));
-/* p2c: ASS29.PAS, line 2871:
- * Note: Possible string truncation in assignment [145] */
-			SwitchOK = false;
-			if (!strcmp(SwitchParameter, "64NET")) {
-				Transfer = (Transfer & 128) + 1;
-				SwitchOK = true;
-			}
-			if (!strcmp(SwitchParameter, "PC64")) {
-				Transfer = (Transfer & 128) + 2;
-				SwitchOK = true;
-			}
-			if (!strcmp(SwitchParameter, "TRANSFER-")) {
-				Transfer = 0;
-				SwitchOK = true;
-			}
-			if (!strcmp(SwitchParameter, "START")) {
-				Transfer |= 128;
-				SwitchOK = true;
-			}
-			if (!strcmp(SwitchParameter, "START-")) {
-				Transfer &= 127;
-				SwitchOK = true;
-			}
+		boolean SwitchOK;
+		if (P_argv[i][0] == '\0') continue;
+		if (P_argv[i][0] == '-') {
+			UpCaseStr(SwitchParameter, P_argv[i] + 1);
 			if (!strcmp(SwitchParameter, "OCODE")) {
-				SaveAs = 1;
-				SwitchOK = true;
+				SaveAs = SAVE_AS_OCODE;
 			}
-			if (!strcmp(SwitchParameter, "PRG")) {
-				SaveAs = 2;
-				SwitchOK = true;
+			else if (!strcmp(SwitchParameter, "PRG")) {
+				SaveAs = SAVE_AS_PRG;
 			}
-			if (!strcmp(SwitchParameter, "P00")) {
-				SaveAs = 3;
-				SwitchOK = true;
+			else if (!strcmp(SwitchParameter, "P00")) {
+				SaveAs = SAVE_AS_P00;
 			}
-			if (!strcmp(SwitchParameter, "N64")) {
-				SaveAs = 4;
-				SwitchOK = true;
+			else if (!strcmp(SwitchParameter, "N64")) {
+				SaveAs = SAVE_AS_N64;
 			}
-			if (!strcmp(SwitchParameter, "D64")) {
-				SaveAs = 5;
-				SwitchOK = true;
+			else if (!strcmp(SwitchParameter, "D64")) {
+				SaveAs = SAVE_AS_D64;
 			}
-			if (!strcmp(SwitchParameter, "T64")) {
-				SaveAs = 6;
-				SwitchOK = true;
+			else if (!strcmp(SwitchParameter, "T64")) {
+				SaveAs = SAVE_AS_T64;
 			}
-			if (!strcmp(SwitchParameter, "C64")) {
-				SaveAs = 7;
-				SwitchOK = true;
+			else if (!strcmp(SwitchParameter, "C64")) {
+				SaveAs = SAVE_AS_C64;
 			}
-			if (!strcmp(SwitchParameter, "SHOW")) {
+			else if (!strcmp(SwitchParameter, "SHOW")) {
 				Show = true;
-				SwitchOK = true;
 			}
-			if (!strcmp(SwitchParameter, "SHOW-")) {
+			else if (!strcmp(SwitchParameter, "SHOW-")) {
 				Show = false;
-				SwitchOK = true;
 			}
-			if (!strcmp(SwitchParameter, "SYM")) {
+			else if (!strcmp(SwitchParameter, "SYM")) {
 				Symbols = true;
-				SwitchOK = true;
 			}
-			if (!strcmp(SwitchParameter, "SYM-")) {
+			else if (!strcmp(SwitchParameter, "SYM-")) {
 				Symbols = false;
-				SwitchOK = true;
 			}
-			if (!strcmp(SwitchParameter, "KEY")) {
-				WaitForKey = true;
-				SwitchOK = true;
-			}
-			if (!strcmp(SwitchParameter, "KEY-")) {
-				WaitForKey = false;
-				SwitchOK = true;
-			}
-			if (!SwitchOK) {
+			else {
 				printf("Unknown switch -%s!\n", SwitchParameter);
-				_Escape(0);
+				exit(1);
 			}
 		} else
-			strcpy(ParameterFile, P_argv[i]);
-_LCONTINUE:	;
+			ParameterFile = P_argv[i];
 	}
 
-	if (Transfer == 128) {
-		printf("No transfer cable specified!\n");
-		_Escape(0);
-	}
-	if (*ParameterFile == '\0') {
+	if (!ParameterFile) {
 		printf("Usage:  MXASS [-options] filename[.ASM]\n\n");
 		printf("Valid options: (*) = default\n");
-		printf(
-		       "  -64net     The object code will be transferred to a C64 via the 64NET cable\n");
-		printf(
-		       "  -pc64      The object code will be transferred to a C64 via the PC64 cable\n");
-		printf("  -transfer- The object code will not be transferred to a C64 (*)\n");
-		printf("  -start     The program will be started on the C64 after transfer\n");
-		printf(
-		       "  -start-    The program will not be started on the C64 after transfer (*)\n");
-		printf(
-		       "  -ocode     The object code will be written to disk as a binary file with the\n");
+		printf("  -ocode     The object code will be written to disk as a binary file with the\n");
 		printf("             extention .OBJ\n");
-		printf(
-		       "  -prg       The object code will be written to disk as a binary file with the\n");
-		printf(
-		       "             extention .PRG containing the load address at the beginning\n");
-		printf(
-		       "  -p00       The object code will be written to disk as a Personal C64 P00-file\n");
-		printf(
-		       "  -n64       The object code will be written to disk as a 64NET N64-file\n");
-		/*
-		 * Writeln('  -d64       The object code will be written to
-		 * disk as a D64-file as used by'); Writeln('
-		 * several emulators'); Writeln('  -t64       The object code
-		 * will be written to disk as a C64S T64-file'); Writeln('
-		 * -c64       The object code will be written to disk as a
-		 * Personal C64 C64-file');
-		 */
+		printf("  -prg       The object code will be written to disk as a binary file with the\n");
+		printf("             extention .PRG containing the load address at the beginning\n");
+		printf("  -p00       The object code will be written to disk as a Personal C64 P00-file\n");
+		printf("  -n64       The object code will be written to disk as a 64NET N64-file\n");
+/*
+		printf("  -d64       The object code will be written to disk as a D64-file as used by\n");
+		printf("             several emulators\n");
+		printf("  -c64       The object code will be written to disk as a Personal C64 C64-file\n");
+*/
 		printf("  -show      Every line being assembled will be shown on the screen\n");
 		printf("  -show-     Quiet mode (*)\n");
-		printf(
-		       "  -sym       The program symbols will be written to disk as a text file with\n");
+		printf("  -sym       The program symbols will be written to disk as a text file with\n");
 		printf("             the extention .SYM\n");
 		printf("  -sym-      The program symbols will not be written to disk (*)\n");
 
-
-		_Escape(0);
+		exit(0);
 	}
-	ins = strpos2(ParameterFile, ".", 1);
-	do {
-		ins2 = strpos2(strcpy(STR4, ParameterFile + ins), ".", 1);
-		if (ins2 != 0)
-			ins += ins2;
-	} while (ins2 != 0);
-	if (ins > 0 && ins + 4 > strlen(ParameterFile))
-		sprintf(Filename, "%.*s", ins, ParameterFile);
+	ins = strrchr(ParameterFile, '.');
+	if (ins)
+		strncpy(Filename, ParameterFile, ins-ParameterFile);
 	else {
-		sprintf(Filename, "%s.", ParameterFile);
-		strcat(ParameterFile, ".ASM");
+		strncpy(Filename, ParameterFile, sizeof(Filename));
 	}
+	strncat(Filename, ".", sizeof(Filename));
+	printf(Filename);
 
 	/* Z80-Opcodes einlesen */
 	strcpy(OpcodesFile_NAME, OPCODESFILENAMEZ80);
@@ -3579,7 +2989,7 @@ _LCONTINUE:	;
 		_SETIO(OpcodesFile != NULL, FileNotFound);
 		if (P_ioresult > 0) {
 			printf("MXASS.EXE is corrupt!\n");
-			_Escape(0);
+			exit(1);
 		}
 		fseek(OpcodesFile,
 		      P_maxpos(OpcodesFile) - OPCODESFILELENGTH - OPCODESFILELENGTHZ80 + 1,
@@ -3587,7 +2997,7 @@ _LCONTINUE:	;
 	}
 	for (i = 1; i <= Z80MNEMOS; i++) {
 		printf("ERROR: Seg()\n");
-		_Escape(0);
+		exit(1);
 		/*
 		 * BlockRead(OpcodesFile,Ptr(Seg(Z80Mnemo[i]),Ofs(Z80Mnemo[i])
 		 * +1)^,4);
@@ -3624,7 +3034,7 @@ _LCONTINUE:	;
 		_SETIO(OpcodesFile != NULL, FileNotFound);
 		if (P_ioresult > 0) {
 			printf("MXASS.EXE is corrupt!\n");
-			_Escape(0);
+			exit(1);
 		}
 		fseek(OpcodesFile, P_maxpos(OpcodesFile) - OPCODESFILELENGTH + 1, 0);
 	}
@@ -3741,11 +3151,10 @@ _LBreak3:
 	if (Time - StartTime != 0)
 		printf("%5.0f lines/sec.\n", reallines / ((Time - StartTime) / 18.2));
 
-	if (SaveAs > 0) {
+	if (SaveAs != SAVE_AS_NONE) {
 		printf("Save...");
 		switch (SaveAs) {
-
-		case 1:	/* ocode */
+		case SAVE_AS_OCODE:
 			sprintf(STR8, "%sOBJ", Filename);
 			strcpy(SaveFile_NAME, STR8);
 			if (SaveFile != NULL)
@@ -3762,7 +3171,7 @@ _LBreak3:
 			SaveFile = NULL;
 			break;
 
-		case 2:	/* PRG */
+		case SAVE_AS_PRG:
 			if (*SaveName == '\0')
 				sprintf(SaveName, "%sPRG", Filename);
 			strcpy(SaveFile_NAME, SaveName);
@@ -3781,7 +3190,7 @@ _LBreak3:
 			SaveFile = NULL;
 			break;
 
-		case 3:	/* P00 */
+		case SAVE_AS_P00:
 			sprintf(STR8, "%sP00", Filename);
 			strcpy(SaveFile_NAME, STR8);
 			if (SaveFile != NULL)
@@ -3817,7 +3226,7 @@ _LBreak3:
 			SaveFile = NULL;
 			break;
 
-		case 4:	/* N64 */
+		case SAVE_AS_N64:
 			sprintf(STR8, "%sN64", Filename);
 			strcpy(SaveFile_NAME, STR8);
 			if (SaveFile != NULL)
@@ -3876,7 +3285,7 @@ _LBreak3:
 
 		default:
 			printf("Sorry, format not yet implemented!");
-			_Escape(0);
+			exit(1);
 			break;
 		}
 		printf("OK.\n");
@@ -3901,31 +3310,10 @@ _LBreak3:
 		SymbolsFile = NULL;
 		printf("OK.\n");
 	}
-	if (Transfer > 0) {
-		printf("ERROR: Transfer not implemented.\n");
-		_Escape(0);
-		/*
-	            Write('Trying to establish connection');
-	            for i:=1 to 40 do
-	            begin
-	              Write('.');
-	              if DoTransfer=FALSE then
-	              begin
-	                i:=0;
-	                goto Break4;
-	              end;
-	            end;
-	    Break4:
-	            if i>0 then Writeln('Failed!') else Writeln('OK.');
-	        */
-	}
 	putchar('\n');
 
 	Free(SourceText);
 
-	/*
-	 * NO TRANSFER InitPort;
-	 */
 	if (OpcodesFile != NULL)
 		fclose(OpcodesFile);
 	if (SaveFile != NULL)
