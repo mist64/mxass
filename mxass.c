@@ -128,8 +128,9 @@
 
 #include <p2c/p2c.h>
 
+typedef unsigned short uint16_t;
 
-#define MNEMOS          108	/* Anzahl der bekannten Mnemos */
+#define MNEMOS          107	/* Anzahl der bekannten Mnemos */
 #define ADDMODES        23
 #define Z80MNEMOS       78
 #define MAXNAMELENGTH   25
@@ -266,7 +267,7 @@ Static unsigned short Opcode[MNEMOS][ADDMODES];
 
 Static Char     Z80Mnemo[Z80MNEMOS][5];
 Static uchar    Z80Addmode[Z80MNEMOS];
-Static unsigned short Z80Opcode[Z80MNEMOS];
+Static uint16_t Z80Opcode[Z80MNEMOS];
 
 Static uchar    RegisterInvolved[MNEMOS];
 Static Char     xLabel[MAXLABELS + 1][MAXNAMELENGTH + 1];
@@ -288,7 +289,6 @@ Static unsigned short StartTime;
 Static double   AssemblyTime;
 Static boolean  Show;
 Static Char     PrintLine[256];
-Static uchar    NumberOfMnemos;
 Static unsigned short Labels, MacroLabels;
 Static boolean  MacroError;
 Static Char     actl[256];
@@ -316,7 +316,6 @@ Static uchar    j, ins, ins2;
 Static Char     SwitchParameter[11];
 Static FILE    *OpcodesFile;
 Static uchar    OpcodesHelp[(ADDMODES << 1) + 5];
-Static unsigned short BytesRead;
 Static Char     CurL[256];
 Static Char     actMacroName[256];
 Static Char     actMacroOperand[256];
@@ -331,7 +330,6 @@ Static boolean  IgnoreNextEnd;
 
 Static boolean  TransErr;
 
-Static Char     OpcodesFile_NAME[_FNSIZE];
 Static Char     SaveFile_NAME[_FNSIZE];
 Static Char     SymbolsFile_NAME[_FNSIZE];
 
@@ -2967,96 +2965,32 @@ main(argc, argv)
 		strncpy(Filename, ParameterFile, sizeof(Filename));
 	}
 	strncat(Filename, ".", sizeof(Filename));
-	printf(Filename);
 
 	/* Z80-Opcodes einlesen */
-	strcpy(OpcodesFile_NAME, OPCODESFILENAMEZ80);
-	/* existiert separate Datei?    */
-	if (OpcodesFile != NULL)
-		OpcodesFile = freopen(OpcodesFile_NAME, "r+b", OpcodesFile);
-	else
-		OpcodesFile = fopen(OpcodesFile_NAME, "r+b");
-	_SETIO(OpcodesFile != NULL, FileNotFound);
-	if (P_ioresult > 0) {	/* nein, dann aus EXE-Overlay   *//* laden
-				 * (funktioniert nicht in */
-		strcpy(STR4, P_argv[0]);
-		strcpy(OpcodesFile_NAME, STR4);
-		if (OpcodesFile != NULL) {
-			/* der Entwicklungsumgebung!)   */
-			OpcodesFile = freopen(OpcodesFile_NAME, "r+b", OpcodesFile);
-		} else
-			OpcodesFile = fopen(OpcodesFile_NAME, "r+b");
-		_SETIO(OpcodesFile != NULL, FileNotFound);
-		if (P_ioresult > 0) {
-			printf("MXASS.EXE is corrupt!\n");
-			exit(1);
-		}
-		fseek(OpcodesFile,
-		      P_maxpos(OpcodesFile) - OPCODESFILELENGTH - OPCODESFILELENGTHZ80 + 1,
-		      0);
+	OpcodesFile = fopen(OPCODESFILENAMEZ80, "r+b");
+	//TODO: error case
+	for (i = 0; i <= Z80MNEMOS-1; i++) {
+		fread(&Z80Mnemo[i], 4, 1, OpcodesFile);
+		Z80Mnemo[i][4] = '\0';
+		fread(&Z80Addmode[i], 1, 1, OpcodesFile);
+		fread(&Z80Opcode[i], 2, 1, OpcodesFile); //TODO: only works on little endian
+		if (ins = strchr(Z80Mnemo[i], ' '))
+			*ins = 0;
+//		printf("%s: %d, %02x-%02x\n", Z80Mnemo[i], Z80Addmode[i], Z80Opcode[i]&0xFF, Z80Opcode[i]>>8);
 	}
-	for (i = 1; i <= Z80MNEMOS; i++) {
-		printf("ERROR: Seg()\n");
-		exit(1);
-		/*
-		 * BlockRead(OpcodesFile,Ptr(Seg(Z80Mnemo[i]),Ofs(Z80Mnemo[i])
-		 * +1)^,4);
-		 */
-/* p2c: ASS29.PAS, line 2961:
- * Note: Can't interpret size in BLOCKREAD [174] */
-		fread(&Z80Addmode[i - 1], 1, 1, OpcodesFile);
-		fread(&Z80Opcode[i - 1], sizeof(unsigned short), 1, OpcodesFile);
-		Z80Mnemo[i - 1][4] = '\0';
-		while (Z80Mnemo[i - 1][strlen(Z80Mnemo[i - 1]) - 1] == ' ')
-			Z80Mnemo[i - 1][strlen(Z80Mnemo[i - 1]) - 1] = '\0';
-	}
-	if (OpcodesFile != NULL)
-		fclose(OpcodesFile);
-	OpcodesFile = NULL;
+	fclose(OpcodesFile);
 
 	/* 65xx-Opcodes einlesen */
-	strcpy(OpcodesFile_NAME, OPCODESFILENAME);
-	/* existiert separate Datei?    */
-	if (OpcodesFile != NULL)
-		OpcodesFile = freopen(OpcodesFile_NAME, "r+b", OpcodesFile);
-	else
-		OpcodesFile = fopen(OpcodesFile_NAME, "r+b");
-	_SETIO(OpcodesFile != NULL, FileNotFound);
-	if (P_ioresult > 0) {	/* nein, dann aus EXE-Overlay   *//* laden
-				 * (funktioniert nicht in */
-		strcpy(STR4, P_argv[0]);
-		strcpy(OpcodesFile_NAME, STR4);
-		if (OpcodesFile != NULL) {
-			/* der Entwicklungsumgebung!)   */
-			OpcodesFile = freopen(OpcodesFile_NAME, "r+b", OpcodesFile);
-		} else
-			OpcodesFile = fopen(OpcodesFile_NAME, "r+b");
-		_SETIO(OpcodesFile != NULL, FileNotFound);
-		if (P_ioresult > 0) {
-			printf("MXASS.EXE is corrupt!\n");
-			exit(1);
-		}
-		fseek(OpcodesFile, P_maxpos(OpcodesFile) - OPCODESFILELENGTH + 1, 0);
-	}
-	NumberOfMnemos = 1;
-	do {
-		BytesRead = fread(OpcodesHelp, 1, sizeof(uchar) * 25, OpcodesFile);
-		if (BytesRead == 0)
-			goto _LBreak2;
-		sprintf(Mnemo[NumberOfMnemos - 1], "%c",
-			OpcodesHelp[0] + OpcodesHelp[1] + OpcodesHelp[2]);
-		RegisterInvolved[NumberOfMnemos - 1] = OpcodesHelp[3];
+	OpcodesFile = fopen(OPCODESFILENAME, "r+b");
+	//TODO: error case
+	for (i = 0; i <= MNEMOS-1; i++) {
+		fread(Mnemo[i], 1, 3, OpcodesFile);
+		fread(&RegisterInvolved[i], 1, 1, OpcodesFile);
 		for (j = 0; j < ADDMODES; j++)
-			Opcode[NumberOfMnemos - 1]
-				[j] = OpcodesHelp[(j << 1) + 4] + (OpcodesHelp[(j << 1) + 5] << 8);
-		NumberOfMnemos++;
-	} while (!P_eof(OpcodesFile));
-_LBreak2:
-	if (OpcodesFile != NULL)
-		fclose(OpcodesFile);
-	OpcodesFile = NULL;
-
-
+			fread(&Opcode[i][j], 2, 1, OpcodesFile); //TODO: only works on little endian
+//		printf("%s\n", Mnemo[i]);
+	}
+	fclose(OpcodesFile);
 
 	printf(" *** Reading sourcecode %c%s%c\n",
 	       QUOTE, UpCaseStr(STR4, ParameterFile), QUOTE);
