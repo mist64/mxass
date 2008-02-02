@@ -1340,7 +1340,7 @@ _LBreak3:	;
 	do {
 		CurL = MacroReadLine(MacroNum);
 		if (*CurL == '\0') break;
-printf("%s\n", CurL);
+//printf("%s\n", CurL);
 		bLen = Assemble(b, CurL);
 		memcpy(a, b, bLen);
 		aLen += bLen;
@@ -1686,9 +1686,9 @@ Static Char    *
 ReadLine()
 {
 	char *s;
-//printf("%x[%d]\n", SourceText, SourceIndex);
 	if (SourceIndex>=SourceEnd) return "";
 	s = &SourceText[SourceIndex];
+//printf("%x[%d] = '%s'\n", SourceText, SourceIndex, s);
 	SourceIndex+=strlen(s)+1;
 	return s;
 }
@@ -2410,8 +2410,7 @@ Assemble(char *a, char *curL_)
 	curL = curL_;
 	aLen = 0;
 	if (curL[0] == '.') {	/* Pseudo-Opcode */
-		strcpy(STR4, curL + 1);
-		strcpy(curL, STR4);
+		curL++;
 		ins = FindSeparator(curL);
 		if (ins > 0) {
 			sprintf(Pseudo, "%.*s", ins - 1, curL);
