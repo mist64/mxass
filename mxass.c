@@ -491,7 +491,7 @@ Static boolean
 FindFile(Filename)
 	Char           *Filename;
 {
-	printf("ERROR: asm!\n");
+	printf("ERROR: asm1!\n");
 	exit(1);
 	/*
 	 * Filename:=Filename+#0; SeF:=Seg(Filename); OfF:=Ofs(Filename)+1;
@@ -746,17 +746,12 @@ SPetscii(Result, A)
 	Char           *A;
 {
 	/* wandelt String von ASCII nach PETSCII */
-	printf("ERROR: asm!\n");
-	exit(1);
-	/*
-	 * SegA:=Seg(A); OfsA:=Ofs(A)+1; LenA:=Length(A); asm push ds mov ax,
-	 * SegA mov ds, ax mov es, ax mov si, OfsA mov di, si mov cl, LenA
-	 * mov ch, 0 @@petloop: lodsb cmp al, 65 jb @@petend cmp al, 92 ja
-	 * @@pet1 add al, 128 jmp @@petend @@pet1: cmp al, 97 jb @@petend cmp
-	 * al, 122 ja @@petend sub al, 32 @@petend: stosb loop @@petloop pop
-	 * ds end;
-	 */
-	return strcpy(Result, A);
+	int i;
+	for (i=0; i<strlen(A); i++) {
+		Result[i] = Petscii(A[i]);
+	}
+	Result[i] = 0;
+	return Result;
 }
 
 
@@ -766,7 +761,7 @@ SScrCode(Result, A)
 	Char           *A;
 {
 	/* wandelt Str PETSCII nach Screencode */
-	printf("ERROR: asm!\n");
+	printf("ERROR: asm3!\n");
 	exit(1);
 	/*
 	 * SegA:=Seg(A); OfsA:=Ofs(A)+1; LenA:=Length(A); asm push ds mov ax,
@@ -1073,7 +1068,7 @@ MacroReadLine(Result, Num)
 	Char           *Result;
 	unsigned short  Num;
 {
-	printf("ERROR: asm!\n");
+	printf("ERROR: asm4!\n");
 	exit(1);
 	/*
 	 * if MacroSourceIndex>=MacroSourceEnd[Num] then begin
