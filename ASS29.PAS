@@ -369,10 +369,10 @@ end;
 function FindFile(Filename: string): boolean;
 var SeF, OfF: word;
 begin
-  Filename:=Filename+#0;
+  WriteLn("ERROR: asm!"); Halt;
+{  Filename:=Filename+#0;
   SeF:=Seg(Filename); OfF:=Ofs(Filename)+1;
-  WriteLn("ERROR: asm!"): Halt;
-{  asm
+  asm
     push ds
     mov ax, SeF
     mov ds, ax
@@ -483,7 +483,8 @@ EQU:
           Halt;
         end;
         { Zeile in Quelltextspeicher kopieren }
-        Move(Ptr(Seg(Line),Ofs(Line)+1)^,Ptr(Seg(SourceText^),Ofs(SourceText^)+SourceIndex)^,Length(Line));
+  WriteLn("ERROR: Move!"); Halt;
+{        Move(Ptr(Seg(Line),Ofs(Line)+1)^,Ptr(Seg(SourceText^),Ofs(SourceText^)+SourceIndex)^,Length(Line));}
         Inc(SourceIndex,Length(Line)+1);
         SourceText^[SourceIndex-1]:=0;
 
@@ -503,7 +504,8 @@ end;
 
 procedure Errorstop(S: string);
 begin
-  GotoXY(1,WhereY-1);
+  WriteLn("WARNING: gotoxy!");
+{  GotoXY(1,WhereY-1);}
   Writeln('Line ',currentline,': ',S);
   Writeln(curL);
   Halt;
@@ -560,9 +562,9 @@ var SegA, OfsA: word;
     j: byte;
     b: byte;
 begin
-  SegA:=Seg(A); OfsA:=Ofs(A)+1; LenA:=Length(A);
-  WriteLn("ERROR: asm!"): Halt;
-{  asm
+  WriteLn("ERROR: asm!"); Halt;
+{  SegA:=Seg(A); OfsA:=Ofs(A)+1; LenA:=Length(A);
+  asm
     push ds
     mov ax, SegA
     mov ds, ax
@@ -599,9 +601,9 @@ var SegA, OfsA: word;
     j: byte;
     b: byte;
 begin
-  SegA:=Seg(A); OfsA:=Ofs(A)+1; LenA:=Length(A);
-  WriteLn("ERROR: asm!"): Halt;
-(*  asm
+  WriteLn("ERROR: asm!"); Halt;
+(*  SegA:=Seg(A); OfsA:=Ofs(A)+1; LenA:=Length(A);
+  asm
     push ds
     mov ax, SegA
     mov ds, ax
@@ -880,14 +882,14 @@ function MacroReadLine(Num: word): string;
 var SText, OText, Len, EndDI: word;
     S: string;
 begin
-  if MacroSourceIndex>=MacroSourceEnd[Num] then
+    WriteLn("ERROR: asm!"); Halt;
+{  if MacroSourceIndex>=MacroSourceEnd[Num] then
   begin
     MacroReadLine:='';
   end else begin
     SText:=Seg(MacroSourceText[Num]); OText:=Ofs(MacroSourceText[Num])+MacroSourceIndex;
     Len:=MAXMACROLENGTH-MacroSourceIndex;
-    WriteLn("ERROR: asm!"): Halt;
-{    asm
+    asm
       mov ax, SText
       mov es, SText
       mov di, OText
@@ -896,12 +898,12 @@ begin
       repnz scasb
       mov EndDI, di
       mov Len, cx
-    end;}
+    end;
     S[0]:=Chr(EndDI-OText-1);
     Move(Ptr(SText,OText)^,Ptr(Seg(S),Ofs(S)+1)^,Ord(S[0]));
     Inc(MacroSourceIndex,EndDI-OText);
     MacroReadLine:=S;
-  end;
+  end;}
 end;
 
 function Assemble(curL: string): string; forward;
@@ -1419,14 +1421,14 @@ function ReadLine: string;
 var SText, OText, Len, EndDI: word;
     S: string;
 begin
-  if SourceIndex>=SourceEnd then
+    WriteLn("ERROR: asm!"); Halt;
+{  if SourceIndex>=SourceEnd then
   begin
     ReadLine:='';
   end else begin
     SText:=Seg(SourceText^); OText:=Ofs(SourceText^)+SourceIndex;
     Len:=SOURCEMEM-SourceIndex;
-    WriteLn("ERROR: asm!"): Halt;
-{    asm
+    asm
       mov ax, SText
       mov es, SText
       mov di, OText
@@ -1435,12 +1437,12 @@ begin
       repnz scasb
       mov EndDI, di
       mov Len, cx
-    end;}
+    end;
     S[0]:=Chr(EndDI-OText-1);
     Move(Ptr(SText,OText)^,Ptr(Seg(S),Ofs(S)+1)^,Ord(S[0]));
     Inc(SourceIndex,EndDI-OText);
     ReadLine:=S;
-  end;
+  end;}
 end;
 
 
@@ -2639,10 +2641,11 @@ begin
           if CurL='' then Errorstop('End of macro expected!');
           if UpCaseStr(Copy(CurL,1,3))='.EN' then Break;
           { Zeile in Makro-Quelltext kopieren }
-          Move(Ptr(Seg(CurL),Ofs(CurL)+1)^,
+  WriteLn("ERROR: Move!"); Halt;
+{          Move(Ptr(Seg(CurL),Ofs(CurL)+1)^,
                Ptr(Seg(MacroSourceText[Macros]),
                Ofs(MacroSourceText[Macros])+MacroSourceIndex)^,
-               Length(CurL));
+               Length(CurL));}
           Inc(MacroSourceIndex,Length(CurL)+1);
           MacroSourceText[Macros,SourceIndex-1]:=0;
           Inc(i);
@@ -2710,6 +2713,7 @@ codeok:
   Assemble:=a;
 end;
 
+(* TRANSFER DISABLED
 function DoTransfer: boolean;
 var index, index2, address, copylength: word;
     CStoreAddresses: string[254];
@@ -2779,14 +2783,16 @@ begin
   end;
   DoTransfer:=FALSE;
 end;
-
+*)
 
 { Main }
 var b1: word; b2: byte;  { für geheime Botschaft }
 const s:string=#$F8+#$E9+#$DE+#$DB+#$E0+#$DF+#$D5+#$EF;
+label CONTINUE;
 begin
-  COPYRIGHT1; COPYRIGHT2; { nur Dummies }
-  InitPort;
+(*  COPYRIGHT1; COPYRIGHT2; { nur Dummies } *)
+{ NO TRANSFER 
+  InitPort;}
 
   New(SourceText);
 
@@ -2818,7 +2824,7 @@ begin
   ParameterFile:=''; Transfer:=0; SaveAs:=0; Symbols:=FALSE; WaitForKey:=FALSE;
   for i:=1 to ParamCount do
   begin
-    if ParamStr(i)='' then Continue;
+    if ParamStr(i)='' then goto CONTINUE; {Continue;}
     if Pos(Copy(ParamStr(i),1,1), SWITCHES)>0 then
     begin
       SwitchParameter:=UpCaseStr(Copy(ParamStr(i),2,255));
@@ -2849,6 +2855,7 @@ begin
     end else begin
       ParameterFile:=ParamStr(i);
     end;
+CONTINUE:
   end;
 
   if Transfer=128 then begin Writeln('No transfer cable specified!'); Halt; end;
@@ -2908,7 +2915,8 @@ begin
   end;
   for i:=1 to Z80MNEMOS do
   begin
-    BlockRead(OpcodesFile,Ptr(Seg(Z80Mnemo[i]),Ofs(Z80Mnemo[i])+1)^,4);
+    WriteLn("ERROR: Seg()"); Halt;
+{    BlockRead(OpcodesFile,Ptr(Seg(Z80Mnemo[i]),Ofs(Z80Mnemo[i])+1)^,4);}
     BlockRead(OpcodesFile,Z80Addmode[i],1);
     BlockRead(OpcodesFile,Z80Opcode[i],2);
     Z80Mnemo[i][0]:=#4;
@@ -2971,7 +2979,8 @@ begin
       Inc(i);
       if ((i and 63)=0) and ((Pass<>2) or (SHOW=FALSE)) then
       begin
-        GotoXY(6,WhereY-1); Writeln(Right4(currentline));
+        WriteLn("WARNING: gotoxy!");
+{        GotoXY(6,WhereY-1);} Writeln(Right4(currentline));
       end;
       if UpCaseStr(curL)='.EN' then begin
         if not IgnoreNextEnd then Break; { Ende der Assemblierung, alles nach .en überlesen }
@@ -2999,7 +3008,7 @@ begin
         oldopaddress:=opaddress;
       end;
     until FALSE;
-  if (Pass<>2) or (SHOW=FALSE) then begin GotoXY(6,WhereY-1); Writeln(Right4(reallines)); end;{ fertig! }
+  if (Pass<>2) or (SHOW=FALSE) then begin WriteLn("WARNING: gotoxy!"): {GotoXY(6,WhereY-1);} Writeln(Right4(reallines)); end;{ fertig! }
   end;
 
   Writeln;
@@ -3074,6 +3083,8 @@ begin
 
   if Transfer>0 then
   begin
+    WriteLn('ERROR: Transfer not implemented.'); Halt;
+{
     Write('Trying to establish connection');
     for i:=1 to 40 do
     begin
@@ -3085,13 +3096,15 @@ begin
       end;
     end;
     if i>0 then Writeln('Failed!') else Writeln('OK.');
+}
   end;
 
   Writeln;
 
   Dispose(SourceText);
 
-  InitPort;
+{ NO TRANSFER 
+  InitPort;}
 end.
 
 
