@@ -197,10 +197,9 @@ typedef unsigned short uint16_t;
 #define SAVE_AS_OCODE 1
 #define SAVE_AS_PRG 2
 #define SAVE_AS_P00 3
-#define SAVE_AS_N64 4
-#define SAVE_AS_D64 5
-#define SAVE_AS_T64 6
-#define SAVE_AS_C64 7
+#define SAVE_AS_D64 4
+#define SAVE_AS_T64 5
+#define SAVE_AS_C64 6
 
 typedef char   tSourceText[SOURCEMEM];
 typedef long    numbertype;
@@ -278,7 +277,13 @@ Static unsigned short MacroValue[MAXMACPARA + 1];
 Static uchar    ocode[MAXOCODE + 1];
 /* Variablen */
 Static Char     Loads[256];	/* TODO: Must be done with arrays */
-Static Char     StoreAddresses[256];	/* TODO: Must be done with arrays */
+//Static Char     StoreAddresses[256];	/* TODO: Must be done with arrays */
+#define MAXStoreAddresses 200
+struct {
+	uint16_t	ocodeindex;
+	uint16_t	memoryaddress;
+} StoreAddresses[MAXStoreAddresses];
+int nStoreAddresses;
 Static unsigned short LoadAddress, Time;	/* TODO absolute $40:$6C; */
 Static unsigned short StartTime;
 Static double   AssemblyTime;
@@ -999,18 +1004,13 @@ SetLabel(L_, V)
 	if (!strcmp(L, "*")) {	/* Base Address setzen */
 		if (unknown == true)
 			Errorstop("Base has to be a constant!");
-		if (*StoreAddresses != '\0') {
-			if (strlen(StoreAddresses) > 250)
-				Errorstop("Tooo many base definitions!");
-			sprintf(StoreAddresses + strlen(StoreAddresses), "%c",
-				(ocodeIndex & 255) + (ocodeIndex >> 8) + (V & 255) + (V >> 8));
-		} else {
-			sprintf(StoreAddresses, "%c", (V & 255) + (V >> 8));
-/* p2c: ASS29.PAS, line 856:
- * Note: Null character in sprintf control string [147] */
-/* p2c: ASS29.PAS, line 856:
- * Note: Null character at end of sprintf control string [148] */
-		}
+		if (nStoreAddresses >= MAXStoreAddresses)
+			Errorstop("Too many base definitions!");
+		if (!nStoreAddresses)
+			startaddress = V;
+		StoreAddresses[nStoreAddresses].ocodeindex = ocodeIndex;
+		StoreAddresses[nStoreAddresses].memoryaddress = V;
+		nStoreAddresses++;
 		opaddress = V;
 		return;
 	}
@@ -2497,9 +2497,9 @@ Assemble(char *a, char *curL_)
 			PseudoOK = true;
 			unknown = false;
 			number = GetNumber(Operand);
-			sprintf(StoreAddresses + strlen(StoreAddresses), "%c",
-				(ocodeIndex & 255) + (ocodeIndex >> 8) + (number & 255) + //TODO
-				(((unsigned long) number) >> 8));
+			StoreAddresses[nStoreAddresses].ocodeindex = ocodeIndex;
+			StoreAddresses[nStoreAddresses].memoryaddress = number;
+			nStoreAddresses++; //TODO: check upper bound
 		}
 		if (!strcmp(Pseudo, "AS"))
 			/* assemblefor; logische Assemblieradresse ändern, */
@@ -2557,7 +2557,7 @@ Assemble(char *a, char *curL_)
 				number = 0;
 			if (number > 256)
 				Errorstop("Byte > 8 Bit!");
-			if (*StoreAddresses == '\0')
+			if (!nStoreAddresses)
 				Errorstop("Base missing!");
 			if (Pass == 2) {
 				if (ocodeIndex + times > MAXOCODE)
@@ -2865,9 +2865,6 @@ main(argc, argv)
 			else if (!strcmp(SwitchParameter, "P00")) {
 				SaveAs = SAVE_AS_P00;
 			}
-			else if (!strcmp(SwitchParameter, "N64")) {
-				SaveAs = SAVE_AS_N64;
-			}
 			else if (!strcmp(SwitchParameter, "D64")) {
 				SaveAs = SAVE_AS_D64;
 			}
@@ -2905,7 +2902,6 @@ main(argc, argv)
 		printf("  -prg       The object code will be written to disk as a binary file with the\n");
 		printf("             extention .PRG containing the load address at the beginning\n");
 		printf("  -p00       The object code will be written to disk as a Personal C64 P00-file\n");
-		printf("  -n64       The object code will be written to disk as a 64NET N64-file\n");
 /*
 		printf("  -d64       The object code will be written to disk as a D64-file as used by\n");
 		printf("             several emulators\n");
@@ -2925,7 +2921,6 @@ main(argc, argv)
 	else {
 		strncpy(Filename, ParameterFile, sizeof(Filename));
 	}
-	strncat(Filename, ".", sizeof(Filename));
 
 	/* Z80-Opcodes einlesen */
 	OpcodesFile = fopen(OPCODESFILENAMEZ80, "r+b");
@@ -2974,14 +2969,14 @@ main(argc, argv)
 		CpuIllegal = false;
 		SizeAccu = false;
 		SizeIndex = false;
-		*StoreAddresses = '\0';
+		nStoreAddresses = 0;
 		SourceIndex = 0;
 		i = 0;
 		do {
 			currentline = reallinenumber[i];
 			CurL = ReadLine();
 //printf("%x\n", CurL);
-//printf("'%s'\n", CurL);
+printf("'%s'\n", CurL);
 //printf("\n\n\nXX'%c' '%c' '%c'XX\n\n\n\n", CurL[0], CurL[1], CurL[2]);
 			if (*CurL == '\0') break;
 			i++;
@@ -2991,7 +2986,7 @@ main(argc, argv)
 				IgnoreNextEnd = false;
 			}
 			aLen = Assemble(a, CurL);
-			if (aLen && *StoreAddresses == '\0')
+			if (aLen && !nStoreAddresses)
 				Errorstop("Base missing!");
 			if (Pass == 2) {
 				if (ocodeIndex + aLen > MAXOCODE)
@@ -3034,132 +3029,32 @@ main(argc, argv)
 		printf("Save...");
 		switch (SaveAs) {
 		case SAVE_AS_OCODE:
-			sprintf(STR8, "%sOBJ", Filename);
-			strcpy(SaveFile_NAME, STR8);
-			if (SaveFile != NULL)
-				SaveFile = freopen(SaveFile_NAME, "w+b", SaveFile);
-			else
-				SaveFile = fopen(SaveFile_NAME, "w+b");
-			if (SaveFile == NULL)
-				_EscIO(FileNotFound);
-/* p2c: ASS29.PAS, line 3068:
- * Note: Can't interpret size in BLOCKWRITE [174] */
+			sprintf(SaveFile_NAME, "%s.obj", Filename);
+			SaveFile = fopen(SaveFile_NAME, "w+b");
 			fwrite(ocode, ocodeIndex, 1, SaveFile);
-			if (SaveFile != NULL)
-				fclose(SaveFile);
-			SaveFile = NULL;
+			fclose(SaveFile);
 			break;
 
 		case SAVE_AS_PRG:
 			if (*SaveName == '\0')
-				sprintf(SaveName, "%sPRG", Filename);
-			strcpy(SaveFile_NAME, SaveName);
-			if (SaveFile != NULL)
-				SaveFile = freopen(SaveFile_NAME, "w+b", SaveFile);
-			else
-				SaveFile = fopen(SaveFile_NAME, "w+b");
-			if (SaveFile == NULL)
-				_EscIO(FileNotFound);
-			fwrite(&startaddress, sizeof(unsigned short), 1, SaveFile);
-/* p2c: ASS29.PAS, line 3076:
- * Note: Can't interpret size in BLOCKWRITE [174] */
+				sprintf(SaveName, "%s.prg", Filename);
+			SaveFile = fopen(SaveName, "w+b"); //TODO: error handling
+			fwrite(&startaddress, 2, 1, SaveFile);
 			fwrite(ocode, ocodeIndex, 1, SaveFile);
-			if (SaveFile != NULL)
-				fclose(SaveFile);
-			SaveFile = NULL;
+			fclose(SaveFile);
 			break;
 
 		case SAVE_AS_P00:
-			sprintf(STR8, "%sP00", Filename);
-			strcpy(SaveFile_NAME, STR8);
-			if (SaveFile != NULL)
-				SaveFile = freopen(SaveFile_NAME, "w+b", SaveFile);
-			else
-				SaveFile = fopen(SaveFile_NAME, "w+b");
-			if (SaveFile == NULL)
-				_EscIO(FileNotFound);
+			sprintf(SaveFile_NAME, "%s.p00", Filename);
+			SaveFile = fopen(SaveFile_NAME, "w+b");
 			SPetscii(Header, Filename);
-/* p2c: ASS29.PAS, line 3082:
- * Note: Possible string truncation in assignment [145] */
-			Header[strlen(Header) - 1] = '\0';
-			while (strlen(Header) < 18) {	/* TODO: 0 in a string */
-				strcpy(STR5, Header);
-				strcpy(Header, STR5);
-			}
-/* p2c: ASS29.PAS, line 3084:
- * Note: Null character at end of sprintf control string [148] */
-/* p2c: ASS29.PAS, line 3084:
- * Note: Possible string truncation in assignment [145] */
-			sprintf(Header, "C64File%s", strcpy(STR9, Header));
-			/* TODO: 0 in a string */
-/* p2c: ASS29.PAS, line 3085:
- * Note: Null character at end of sprintf control string [148] */
-/* p2c: ASS29.PAS, line 3085:
- * Note: Possible string truncation in assignment [145] */
+			fwrite("C64File", 8, 1, SaveFile);
+			fwrite(Header, strlen(Header), 1, SaveFile);
+			for (i=strlen(Header); i<18; i++)
+				fputc(0, SaveFile);
 			fwrite(&startaddress, sizeof(unsigned short), 1, SaveFile);
-/* p2c: ASS29.PAS, line 3087:
- * Note: Can't interpret size in BLOCKWRITE [174] */
 			fwrite(ocode, ocodeIndex, 1, SaveFile);
-			if (SaveFile != NULL)
-				fclose(SaveFile);
-			SaveFile = NULL;
-			break;
-
-		case SAVE_AS_N64:
-			sprintf(STR8, "%sN64", Filename);
-			strcpy(SaveFile_NAME, STR8);
-			if (SaveFile != NULL)
-				SaveFile = freopen(SaveFile_NAME, "w+b", SaveFile);
-			else
-				SaveFile = fopen(SaveFile_NAME, "w+b");
-			if (SaveFile == NULL)
-				_EscIO(FileNotFound);
-			/* TODO        Header:='C64'+#1+#$82; */
-			fwrite(Header, 5, 1, SaveFile);
-			fwrite(&startaddress, sizeof(unsigned short), 1, SaveFile);
-			ocodeIndex += 2;
-			fwrite(&ocodeIndex, sizeof(unsigned short), 1, SaveFile);
-			ocodeIndex -= 2;
-			*Header = '\0';
-			for (i = 1; i <= 22; i++);
-			strcpy(STR5, Header);
-			strcpy(Header, STR5);
-/* p2c: ASS29.PAS, line 3097:
- * Note: Null character at end of sprintf control string [148] */
-/* p2c: ASS29.PAS, line 3097:
- * Note: Possible string truncation in assignment [145] */
-			/* TODO: 0 in a string */
-			fwrite(Header, 22, 1, SaveFile);
-			SPetscii(Header, Filename);
-/* p2c: ASS29.PAS, line 3099:
- * Note: Possible string truncation in assignment [145] */
-			Header[strlen(Header) - 1] = '\0';
-			while (strlen(Header) < 17) {	/* TODO: 0 in a string */
-				strcpy(STR5, Header);
-				strcpy(Header, STR5);
-			}
-/* p2c: ASS29.PAS, line 3101:
- * Note: Null character at end of sprintf control string [148] */
-/* p2c: ASS29.PAS, line 3101:
- * Note: Possible string truncation in assignment [145] */
-			fwrite(Header, 27, 1, SaveFile);
-			*Header = '\0';
-			for (i = 1; i <= 206; i++);
-			strcpy(STR5, Header);
-			strcpy(Header, STR5);
-/* p2c: ASS29.PAS, line 3103:
- * Note: Null character at end of sprintf control string [148] */
-/* p2c: ASS29.PAS, line 3103:
- * Note: Possible string truncation in assignment [145] */
-			/* TODO: 0 in a string */
-			fwrite(Header, 206, 1, SaveFile);
-			fwrite(&startaddress, sizeof(unsigned short), 1, SaveFile);
-/* p2c: ASS29.PAS, line 3106:
- * Note: Can't interpret size in BLOCKWRITE [174] */
-			fwrite(ocode, ocodeIndex, 1, SaveFile);
-			if (SaveFile != NULL)
-				fclose(SaveFile);
-			SaveFile = NULL;
+			fclose(SaveFile);
 			break;
 
 		default:
