@@ -223,7 +223,7 @@ var SourceText : ^tSourceText;
     Loads: string[255];
     StoreAddresses: string[255];
     LoadAddress: word;
-    Time: word absolute $40:$6C;
+    Time: word; { TODO absolute $40:$6C;}
     StartTime: word;
     AssemblyTime: real;
     Show: boolean;
@@ -346,14 +346,16 @@ end;
 function KillQuotes(T: string): string;
 var ins1, ins2: byte;
     l: byte;
+label Break;
 begin
   repeat
     ins1:=Pos(QUOTE, T); { alles innerhalb von "" übermalen (einschl.) }
-    if ins1=0 then Break;
+    if ins1=0 then goto Break;
     ins2:=Pos(QUOTE,Copy(T,ins1+1,255));
     if ins2=0 then ins2:=Length(T) else ins2:=ins1+ins2;
     for l:=ins1 to ins2 do T[l]:='X';
   until FALSE;
+Break:
   KillQuotes:=T;
 end;
 
@@ -672,6 +674,7 @@ var locallabelflag: boolean;
     help: word;
     Labelfound: boolean;
     RzOK: boolean;
+label Break1, Break2, Break3, Break4;
 begin
   S:=Trim(S);
   if (S[1]='+') or (S[1]='-') then { lokales Label }
@@ -758,13 +761,15 @@ begin
           ArrayFound:=FALSE;
 	  for ArrayScan:=oldfound to Labels-1 do
           begin
-            if xLabel[ArrayScan]=S then begin help:=ArrayScan; ArrayFound:=TRUE; Break; end;
+            if xLabel[ArrayScan]=S then begin help:=ArrayScan; ArrayFound:=TRUE; goto Break1; end;
           end;
-	  if not ArrayFound then Break;
+Break1:
+	  if not ArrayFound then goto Break2;
 	  LValue[LLabels]:=Value[help];
 	  Inc(LLabels);
 	  OldFound:=help+1;
 	until FALSE;
+Break2:
         if LLabels=0 then Errorstop('(1)Local label not found!');
         if S[1]='+' then { nur Vorwärtsverweise erlaubt }
         begin
@@ -794,8 +799,9 @@ begin
       ArrayFound:=FALSE;
       if Labels>0 then for ArrayScan:=0 to Labels-1 do
                        begin
-                         if xLabel[ArrayScan]=S then begin help:=ArrayScan; ArrayFound:=TRUE; Break; end;
+                         if xLabel[ArrayScan]=S then begin help:=ArrayScan; ArrayFound:=TRUE; goto Break3; end;
                        end;
+Break3:
       if not ArrayFound then { Label nicht gefunden }
       begin { vielleicht ein Makro-Parameter? }
         Labelfound:=FALSE;
@@ -804,8 +810,9 @@ begin
           ArrayFound:=FALSE;
           if MacroLabels>0 then for ArrayScan:=0 to MacroLabels-1 do
                                 begin
-                                  if MacroLabel[ArrayScan]=S then begin help:=ArrayScan; ArrayFound:=TRUE; Break; end;
+                                  if MacroLabel[ArrayScan]=S then begin help:=ArrayScan; ArrayFound:=TRUE; goto Break4; end;
                                 end;
+Break4:
           if ArrayFound then
           begin
             number:=MacroValue[help]; Labelfound:=TRUE;
@@ -835,6 +842,7 @@ end;
 procedure SetLabel (L: string; V: word);
 var help: word;
     ArrayScan: word;
+label Break;
 begin
   if L='*' then begin { Base Address setzen }
     if unknown=TRUE then Errorstop('Base has to be a constant!');
@@ -863,8 +871,9 @@ begin
     ArrayFound:=FALSE;
     if Labels>0 then for ArrayScan:=0 to Labels-1 do
                      begin
-                       if xLabel[ArrayScan]=L then begin help:=ArrayScan; ArrayFound:=TRUE; Break; end;
+                       if xLabel[ArrayScan]=L then begin help:=ArrayScan; ArrayFound:=TRUE; goto Break; end;
                      end;
+Break:
   end;
   if not ArrayFound then
   begin
@@ -921,6 +930,7 @@ var MacroNum: word;
     byteword: char;
     testequ: string;
 label DCB, DCW;
+label Break, Break1, Break2, Break3, Break4;
 begin
   if Line[1]='*' then begin
     Statement:=Line[1];
@@ -939,8 +949,9 @@ begin
   ArrayFound:=FALSE;
   if Macros>0 then for ArrayScan:=0 to Macros-1 do
                    begin
-                     if MacroName[ArrayScan]=Statement then begin MacroNum:=ArrayScan; ArrayFound:=TRUE; Break; end;
+                     if MacroName[ArrayScan]=Statement then begin MacroNum:=ArrayScan; ArrayFound:=TRUE; goto Break; end;
                    end;
+Break:
   if not ArrayFound then
   begin
 { Pseudo-Statements ohne führenden Punkt (WDC-Konvention) }
@@ -962,7 +973,7 @@ DCB:
         a:='';
         repeat
           ins:=Pos(',',KillQuotes(Copy(Operand,insold,255)));
-          if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
+          if ins=0 then goto Break1; {! .by ohne Parameter -> Fehler! }
           unknown:=FALSE;
           Operand2:=Copy(Operand,insold,ins-1);
           if (Operand2[1]='"') and (Operand2[Length(Operand2)]='"') then
@@ -979,6 +990,7 @@ DCB:
           end;
           insold:=insold+ins;
         until FALSE;
+Break1:
       end;
       if UpCase(byteword)='W' then
       begin
@@ -989,13 +1001,14 @@ DCW:
         a:='';
         repeat
           ins:=Pos(',',Copy(Operand,insold,255));
-          if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
+          if ins=0 then goto Break2; {! .by ohne Parameter -> Fehler! }
           unknown:=FALSE;
           number:=GetNumber(Copy(Operand,insold,ins-1));
           if unknown then number:=0;
           a:=a+Chr(Lo(number))+Chr(Hi(number));
           insold:=insold+ins;
         until FALSE;
+Break2:
       end;
     end;
     if Statement='DS' then { define storage, wie .br }
@@ -1090,13 +1103,13 @@ DCW:
       { instr(ins1old??,MacroOperand$,",") }
       ins2:=Pos(',',Mask);
       { instr(ins2old??,Mask$,",") }
-      if (ins1=0) and (ins2=0) then Break;
+      if (ins1=0) and (ins2=0) then goto Break3;
       if (ins1=0) or (ins2=0) then Errorstop('Parameter error!');
       V:=Copy(Operand,1,ins1-1);
       { mid$(MacroOperand$,ins1old??, ins1??-ins1old??) }
       La:=Copy(Mask,1,ins2-1);
       { mid$(Mask$,ins2old??, ins2??-ins2old??) }
-      if La='' then Break;
+      if La='' then goto Break3;
       if V='' then V:='0';
       MacroLabel[MacroLabels]:=UpCaseStr(Trim(La));
       MacroValue[MacroLabels]:=GetNumber(V);
@@ -1105,17 +1118,19 @@ DCW:
       Operand:=Copy(Operand,ins1+1,255);
       Mask:=Copy(Mask,ins2+1,255);
     until FALSE;
+Break3:
   end;
   a:='';
   opaddresssaved:=opaddress;
   MacroSourceIndex:=0;
   repeat
     curL:=MacroReadLine(MacroNum);
-    if curL='' then Break;
+    if curL='' then goto Break4;
     b:=Assemble(curL);
     a:=a+b;
     opaddress:=opaddress+Length(b) { Speicherpos. weiterzählen! }
   until FALSE;
+Break4:
   opaddress:=opaddresssaved;
   { MakroLabels löschen, da sie nicht mehr gelten }
   for i:=0 to MAXMACPARA do {! nötig? }
@@ -1151,6 +1166,7 @@ var actMnemo: string[3];
     number, number2: numbertype;
     s: byte;
 label nMnemo;
+label Break;
 begin
   s:=FindSeparator(Line);
   if (s<>4) and (s<>0) then goto nMnemo;
@@ -1159,8 +1175,9 @@ begin
   MnemoNum:=0;
   for ArrayScan:=1 to Mnemos-1 do
   begin
-    if Mnemo[ArrayScan]=actMnemo then begin MnemoNum:=ArrayScan; Break; end;
+    if Mnemo[ArrayScan]=actMnemo then begin MnemoNum:=ArrayScan; goto Break; end;
   end;
+Break:
   if MnemoNum=0 then { vielleicht ein Makroname? }
   begin
 nMnemo:
@@ -1894,6 +1911,7 @@ var ins: byte;
     branch2: byte;
     Prefix, addbyte: byte;
     addbytepresent: boolean;
+label Break, Break1, Break2, Break3, Break4, Break5, Break6, Break7, Break8, Break9, Break10, Break11, Break12;
 begin
   ins:=FindSeparator(Line);
   if ins>0 then
@@ -1907,8 +1925,9 @@ begin
   MnemoNum:=0;
   for ArrayScan:=1 to Z80MNEMOS do
   begin
-    if (Z80Mnemo[ArrayScan]=Mnemo) then begin MnemoNum:=ArrayScan; Break; end;
+    if (Z80Mnemo[ArrayScan]=Mnemo) then begin MnemoNum:=ArrayScan; goto Break; end;
   end;
+Break:
   if (MnemoNum=0) and (Mnemo<>'LD') and (Mnemo<>'IM') and (Mnemo<>'EX')
                   and (Mnemo<>'RST') and (Mnemo<>'IN') and (Mnemo<>'OUT') then
   begin { vielleicht ein Makro? }
@@ -1999,13 +2018,15 @@ indexok:
     reg81:=$FF;
     for i:=0 to Z80REG8s-1 do
     begin
-     if UOp1=Z80Reg8[i] then begin reg81:=i; Break; end;
+     if UOp1=Z80Reg8[i] then begin reg81:=i; goto Break1; end;
     end;
+Break1:
     reg82:=$FF;
     for i:=0 to Z80REG8s-1 do
     begin
-     if UOp2=Z80Reg8[i] then begin reg82:=i; Break; end;
+     if UOp2=Z80Reg8[i] then begin reg82:=i; goto Break2; end;
     end;
+Break2:
     if (reg81<>$FF) and (reg82<>$FF) then { reg8,reg8 }
     begin
       if (reg81=6) and (reg82=6) then Errorstop('Invalid combination: LD (HL),(HL)');
@@ -2151,8 +2172,9 @@ indexok:
       reg:=$FF;
       for i:=0 to Z80REGs-1 do
       begin
-        if Operands=Z80Reg[i] then begin reg:=i; Break; end;
+        if Operands=Z80Reg[i] then begin reg:=i; goto Break3; end;
       end;
+Break3:
       if reg=$FF then ErrorStop('Syntax: B/C/D/E/H/L/A,(C)');
       Addmode:=$D;
       goto AddmodeOK
@@ -2165,8 +2187,9 @@ indexok:
       reg:=$FF;
       for i:=0 to Z80REGs-1 do
       begin
-        if Operands=Z80Reg[i] then begin reg:=i; Break; end;
+        if Operands=Z80Reg[i] then begin reg:=i; goto Break4; end;
       end;
+Break4:
       if reg=$FF then ErrorStop('Syntax: B/C/D/E/H/L/A,(C)');
       Addmode:=$E;
       goto AddmodeOK
@@ -2177,8 +2200,9 @@ indexok:
       reg8:=$FF;
       for i:=0 to Z80REG8s-1 do
       begin
-        if Operands=Z80Reg8[i] then begin reg8:=i; Break; end;
+        if Operands=Z80Reg8[i] then begin reg8:=i; goto Break5; end;
       end;
+Break5:
       if reg8<>$FF then
       begin { Addmode 1 }
         Addmode:=1;
@@ -2194,8 +2218,9 @@ indexok:
       reg16:=$FF;
       for i:=0 to Z80REG16s-1 do
       begin
-        if Operands=Z80Reg16[i] then begin reg16:=i; Break; end;
+        if Operands=Z80Reg16[i] then begin reg16:=i; goto Break6; end;
       end;
+Break6:
       if reg16=$FF then ErrorStop('Syntax: HL, BC/DE/HL/SP');
       Addmode:=3;
       goto AddmodeOK
@@ -2206,8 +2231,9 @@ indexok:
       reg8:=$FF;
       for i:=0 to Z80REG8s-1 do
       begin
-        if Operands=Z80Reg8[i] then begin reg8:=i; Break; end;
+        if Operands=Z80Reg8[i] then begin reg8:=i; goto Break7; end;
       end;
+Break7:
       if reg8<>$FF then
       begin
         Addmode:=7;
@@ -2222,8 +2248,9 @@ indexok:
     reg8:=$FF;
     for i:=0 to Z80REG8s-1 do
     begin
-      if Operands2=Z80Reg8[i] then begin reg8:=i; Break; end;
+      if Operands2=Z80Reg8[i] then begin reg8:=i; goto Break8; end;
     end;
+Break8:
     if reg8<>$FF then
     begin { Addmode 4 }
       Addmode:=4;
@@ -2233,8 +2260,9 @@ indexok:
     reg162:=$FF;
     for i:=0 to Z80REG162s-1 do
     begin
-      if Operands2=Z80Reg162[i] then begin reg162:=i; Break; end;
+      if Operands2=Z80Reg162[i] then begin reg162:=i; goto Break9; end;
     end;
+Break9:
     if reg162<>$FF then
     begin { Addmode F }
       Addmode:=$F;
@@ -2244,8 +2272,9 @@ indexok:
     reg816:=$FF;
     for i:=0 to Z80REG816s-1 do
     begin
-      if Operands2=Z80Reg816[i] then begin reg816:=i; Break; end;
+      if Operands2=Z80Reg816[i] then begin reg816:=i; goto Break10; end;
     end;
+Break10:
     if reg816<>$FF then
     begin { Addmode 6 }
       Addmode:=6;
@@ -2260,8 +2289,9 @@ indexok:
       cond:=$FF;
       for i:=0 to Z80CONDs-1 do
       begin
-        if Operands2=Z80COND[i] then begin cond:=i; Break; end;
+        if Operands2=Z80COND[i] then begin cond:=i; goto Break11; end;
       end;
+Break11:
       if cond<>$FF then
       begin
         if po=255 then
@@ -2283,8 +2313,9 @@ AddmodeOK:
   MnemoNum:=0;
   for ArrayScan:=1 to Z80MNEMOS do
   begin
-    if (Z80Mnemo[ArrayScan]=Mnemo) and (Z80Addmode[ArrayScan]=Addmode) then begin MnemoNum:=ArrayScan; Break; end;
+    if (Z80Mnemo[ArrayScan]=Mnemo) and (Z80Addmode[ArrayScan]=Addmode) then begin MnemoNum:=ArrayScan; goto Break12; end;
   end;
+Break12:
   if MnemoNum=0 then
   begin
     if Addmode=8 then begin Addmode:=9; goto AddmodeOK; end;
@@ -2421,6 +2452,7 @@ end;
 
 function Assemble(curL: string): string;
 label codeok;
+label Break, Break2, Break3, Break4, Break5;
 var Operand2,b: string;
 begin
   a:='';
@@ -2550,7 +2582,7 @@ begin
       a:='';
       repeat
         ins:=Pos(',',KillQuotes(Copy(Operand,insold,255)));
-        if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
+        if ins=0 then goto Break; {! .by ohne Parameter -> Fehler! }
         unknown:=FALSE;
         Operand2:=Copy(Operand,insold,ins-1);
         if (Operand2[1]='"') and (Operand2[Length(Operand2)]='"') then
@@ -2567,6 +2599,7 @@ begin
         end;
         insold:=insold+ins;
       until FALSE;
+Break:
     end;
     if (Pseudo='LA') or (Pseudo='EQ') then { .la oder .equate }
     begin
@@ -2604,13 +2637,14 @@ begin
       a:='';
       repeat
         ins:=Pos(',',Copy(Operand,insold,255));
-        if ins=0 then Break; {! .by ohne Parameter -> Fehler! }
+        if ins=0 then goto Break2; {! .by ohne Parameter -> Fehler! }
         unknown:=FALSE;
         number:=GetNumber(Copy(Operand,insold,ins-1));
         if unknown then number:=0;
         a:=a+Chr(Lo(number))+Chr(Hi(number));
         insold:=insold+ins;
       until FALSE;
+Break2:
     end;
     if Pseudo='MA' then { macro }
     begin
@@ -2629,8 +2663,9 @@ begin
         ArrayFound:=FALSE;
         if Macros>0 then for ArrayScan:=0 to Macros do
                          begin
-                           if MacroName[ArrayScan]=actMacroName then begin help:=ArrayScan; ArrayFound:=TRUE; Break; end;
+                           if MacroName[ArrayScan]=actMacroName then begin help:=ArrayScan; ArrayFound:=TRUE; goto Break3; end;
                          end;
+Break3:
         if ArrayFound then Errorstop('Macro already defined!');
 	MacroName[Macros]:=actMacroName;
         MacroOperand[Macros]:=actMacroOperand;
@@ -2639,7 +2674,7 @@ begin
         repeat
           CurL:=ReadLine;
           if CurL='' then Errorstop('End of macro expected!');
-          if UpCaseStr(Copy(CurL,1,3))='.EN' then Break;
+          if UpCaseStr(Copy(CurL,1,3))='.EN' then goto Break4;
           { Zeile in Makro-Quelltext kopieren }
   WriteLn("ERROR: Move!"); Halt;
 {          Move(Ptr(Seg(CurL),Ofs(CurL)+1)^,
@@ -2650,14 +2685,16 @@ begin
           MacroSourceText[Macros,SourceIndex-1]:=0;
           Inc(i);
         until FALSE;
+Break4:
         MacroSourceEnd[Macros]:=MacroSourceIndex;
         Inc(Macros);
       end else begin { im Pass 2 überspringen }
         Inc(i);
         repeat
-        if UpCaseStr(Copy(ReadLine,1,3))='.EN' then Break;
+        if UpCaseStr(Copy(ReadLine,1,3))='.EN' then goto Break5;
         Inc(i);
       until FALSE;
+Break5:
       end;
     end;
     if Pseudo='IF' then { .if, bedingte Assemblierung }
@@ -2789,6 +2826,7 @@ end;
 var b1: word; b2: byte;  { für geheime Botschaft }
 const s:string=#$F8+#$E9+#$DE+#$DB+#$E0+#$DF+#$D5+#$EF;
 label CONTINUE;
+label Break, Break2, Break3, Break4;
 begin
 (*  COPYRIGHT1; COPYRIGHT2; { nur Dummies } *)
 { NO TRANSFER 
@@ -2810,10 +2848,11 @@ begin
     if ASSDirectory[i]='\' then
     begin
       ASSDirectory:=Copy(ASSDirectory,1,i);
-      Break;
+      goto Break;
     end;
     Dec(i);
   until i=0;
+Break:
 
 { geheime Botschaft }
   if(ParamCount=1)and(Length(ParamStr(1))=8)then begin a:=ParamStr(1);for i:=1to 8do begin b1:=b1+Ord(a[i])*i;
@@ -2941,7 +2980,7 @@ CONTINUE:
   NumberOfMnemos:=1;
   repeat
     BlockRead(OpcodesFile, OpcodesHelp, (ADDMODES shl 1)+4, BytesRead);
-    if BytesRead=0 then Break;
+    if BytesRead=0 then goto Break2;
     Mnemo[NumberOfMnemos]:=Chr(OpcodesHelp[0])+Chr(OpcodesHelp[1])+Chr(OpcodesHelp[2]);
     RegisterInvolved[NumberOfMnemos]:=OpcodesHelp[3];
     for j:=0 to ADDMODES-1 do
@@ -2950,6 +2989,7 @@ CONTINUE:
     end;
     Inc(NumberOfMnemos);
   until Eof(OpcodesFile);
+Break2:
   Close(OpcodesFile);
 
 
@@ -2975,7 +3015,7 @@ CONTINUE:
     i:=0;
     repeat
       currentline:=reallinenumber[i];
-      curL:=ReadLine; if curL='' then Break;
+      curL:=ReadLine; if curL='' then goto Break3;
       Inc(i);
       if ((i and 63)=0) and ((Pass<>2) or (SHOW=FALSE)) then
       begin
@@ -2983,7 +3023,7 @@ CONTINUE:
 {        GotoXY(6,WhereY-1);} Writeln(Right4(currentline));
       end;
       if UpCaseStr(curL)='.EN' then begin
-        if not IgnoreNextEnd then Break; { Ende der Assemblierung, alles nach .en überlesen }
+        if not IgnoreNextEnd then goto Break3; { Ende der Assemblierung, alles nach .en überlesen }
         curL:='ANOP'; { Zeile ignorieren }
         IgnoreNextEnd:=False;
       end;
@@ -3008,7 +3048,8 @@ CONTINUE:
         oldopaddress:=opaddress;
       end;
     until FALSE;
-  if (Pass<>2) or (SHOW=FALSE) then begin WriteLn("WARNING: gotoxy!"): {GotoXY(6,WhereY-1);} Writeln(Right4(reallines)); end;{ fertig! }
+Break3:
+  if (Pass<>2) or (SHOW=FALSE) then begin WriteLn("WARNING: gotoxy!"); {GotoXY(6,WhereY-1);} Writeln(Right4(reallines)); end;{ fertig! }
   end;
 
   Writeln;
@@ -3092,9 +3133,10 @@ CONTINUE:
       if DoTransfer=FALSE then
       begin
         i:=0;
-        Break;
+        goto Break4;
       end;
     end;
+Break4:
     if i>0 then Writeln('Failed!') else Writeln('OK.');
 }
   end;
