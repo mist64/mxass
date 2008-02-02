@@ -1090,13 +1090,11 @@ MacroReadLine(Result, Num)
 }
 
 
-Static Char    *Assemble PP((Char * Result, Char * curL));
+int Assemble(char* Result, char* curL);
 
 
-Static Char    *
-AssembleMacro(Result, Line_)
-	Char           *Result;
-	Char           *Line_;
+int
+AssembleMacro(char *a, char *Line_)
 {
 	Char            Line[256];
 	unsigned short  MacroNum;
@@ -1105,8 +1103,10 @@ AssembleMacro(Result, Line_)
 	Char            V[256];
 	Char            La[256];
 	unsigned short  opaddresssaved;
-	Char            a[256], b[256];	/* TODO: must be done with arrays
-					 * instead */
+//	Char            a[256], b[256];	/* TODO: must be done with arrays
+//					 * instead */
+	int aLen, bLen;
+	char b[255];
 	Char            Statement[256];
 	Char            Operand[256], Operand2[256];
 	Char            byteword;
@@ -1306,12 +1306,11 @@ _LBreak:
 			SetLabel(Statement, (int) number);
 		}
 		if (PseudoOK) {
-			strcpy(Result, a);
 			MacroError = false;
-			return Result;
+			return aLen;
 		} else {
 			MacroError = true;
-			return Result;
+			return aLen;
 		}
 	}
 	/* Parameter auswerten */
@@ -1364,9 +1363,10 @@ _LBreak3:	;
 		MacroReadLine(CurL, MacroNum);
 		if (*CurL == '\0')
 			goto _LBreak4;
-		Assemble(b, CurL);
-		strcat(a, b);
-		opaddress += strlen(b);	/* Speicherpos. weiterzählen! */
+		bLen = Assemble(b, CurL);
+		memcpy(a, b, bLen);
+		aLen += bLen;
+		opaddress += bLen;	/* Speicherpos. weiterzählen! */
 	} while (true);
 _LBreak4:
 	opaddress = opaddresssaved;
@@ -1376,19 +1376,15 @@ _LBreak4:
 		MacroValue[i] = 0;
 	}
 	MacroLabels = 0;
-	strcpy(Result, a);
 	MacroError = false;
-	return Result;
-
-
+	return aLen;
 }
 
 
-Static Char    *
-Assemble65xx(Result, Line_)
-	Char           *Result;
-	Char           *Line_;
+int 
+Assemble65xx(char *a, char *Line_)
 {
+	int aLen;
 	Char            Line[256];
 	Char            actMnemo[4];
 	unsigned short  ArrayScan, MnemoNum;
@@ -1430,10 +1426,10 @@ Assemble65xx(Result, Line_)
 _LBreak:
 	if (MnemoNum == 0) {	/* vielleicht ein Makroname? */
 _LnMnemo:
-		AssembleMacro(Result, Line);
+		aLen = AssembleMacro(a, Line);
 		if (MacroError)
 			Errorstop("Unknown Mnemo!");
-		return Result;
+		return aLen;
 	}
 	/* Operand */
 	addmode = 0;
@@ -1442,7 +1438,7 @@ _LnMnemo:
 		immediate = true;
 		strcpy(STR4, Operand + 1);
 		strcpy(Operand, STR4);
-printf("%d\n", __LINE__);
+//printf("%d\n", __LINE__);
 		operandFlag = true;
 	} else
 		immediate = false;
@@ -1646,61 +1642,66 @@ printf("%d\n", __LINE__);
 
 	if (Pass == 1) {	/* Pass 1, nur Dummy übergeben */
 		if (addmode == 0)
-			strcpy(a, " ");
+			aLen=1;
 		sprintf(STR5, "%c", addmode);
 		if (strpos2(BYTE2MODES, STR5, 1) > 0)
-			strcpy(a, "  ");
+			aLen=2;
 		sprintf(STR5, "%c", addmode);
 		if (strpos2(BYTE3MODES, STR5, 1) > 0)
-			strcpy(a, "   ");
+			aLen=3;
 		sprintf(STR5, "%c", addmode);
 		if (strpos2(BYTE4MODES, STR5, 1) > 0)
-			strcpy(a, "    ");
-		return strcpy(Result, a);
+			aLen=4;
+		return aLen;
 	}
-	/* 0 (0 Bit) */
-	if (addmode == 0)
-		sprintf(a, "%c", actOpcode);
-	sprintf(STR5, "%c", addmode);
-	/* 1, 2, 3, 4, 8, 9, 13, 16, 17, 19, 20 (8 Bit) */
-	if (strpos2(BIT8MODES, STR5, 1) > 0) {
+
+	/* Pass 2, echten Objectcode übergeben */
+	if (addmode == 0) { /* 0 (0 Bit) */
+		a[0] = actOpcode;
+		aLen = 1;
+	} else if (strchr(BIT8MODES, addmode)) { /* 1, 2, 3, 4, 8, 9, 13, 16, 17, 19, 20 (8 Bit) */
 		if (number > 255)
 			Errorstop("Byte > 8 Bit!");
-		sprintf(a, "%c", actOpcode + (Char) number);
-	}
-	sprintf(STR5, "%c", addmode);
-	/* 5, 6, 7, 10, 15, 18 (16 Bit) */
-	if (strpos2(BIT16MODES, STR5, 1) > 0)
-		sprintf(a, "%c",
-			actOpcode + (number & 255) + (((unsigned long) number) >> 8));
-	/* 11 ( 8 Bit relative) */
-	if (addmode == 11) {
+		a[0] = actOpcode;
+		a[1] = number;
+		aLen = 2;
+	} else if (strchr(BIT16MODES, addmode)) { /* 5, 6, 7, 10, 15, 18 (16 Bit) */
+		a[0] = actOpcode;
+		a[1] = number;
+		a[2] = number >> 8;
+		aLen = 3;
+	} else if (addmode == 11) { /* 11 ( 8 Bit relative) */
 		branch = number - opaddress - 2;
+//printf("number=%x, opaddress=%x\n", number, opaddress);
 		if (branch < -128 || branch > 127)
 			Errorstop("Label out of range!");
 		branch2 = branch;
-		sprintf(a, "%c", actOpcode + branch2);
-	}
-	sprintf(STR5, "%c", addmode);
-	/* 12, 14 (24 Bit) */
-	if (strpos2(BIT24MODES, STR5, 1) > 0)
-		sprintf(a, "%c", actOpcode + (number & 255) +
-			(((unsigned long) number) >> 8) + HiHi(number));
-	/* 21 2x 8 Bit */
-	if (addmode == 21) {
+		a[0] = actOpcode;
+		a[1] = branch2;
+		aLen = 2;
+	} else if (strchr(BIT24MODES, addmode)) { /* 12, 14 (24 Bit) */
+		a[0] = actOpcode;
+		a[1] = number;
+		a[2] = number >> 8;
+		a[3] = number >> 16;
+		aLen = 4;
+	} else if (addmode == 21) { /* 21 2x 8 Bit */
 		if (number > 255 || number2 > 255)
 			Errorstop("Byte > 8 Bit!");
-		sprintf(a, "%c", actOpcode + number2 + (Char) number);
+		a[0] = actOpcode;
+		a[1] = number2;
+		a[2] = number;
+		aLen = 3;
+	} else if (addmode == 22) { /* 22 ( 16 Bit relative) */
+		branch = number - opaddress - 3;
+		branch3 = branch;
+		a[0] = actOpcode;
+		a[1] = branch3;
+		a[2] = branch3>>8;
+		aLen = 3;
 	}
-	/* 22 ( 16 Bit relative) */
-	if (addmode != 22)
-		return strcpy(Result, a);
-	branch = number - opaddress - 3;
-	branch3 = branch;
-	sprintf(a, "%c", actOpcode + (branch3 & 255) + (branch3 >> 8));
-	return strcpy(Result, a);
-
-	/* Pass 2, echten Objectcode übergeben */
+//printf("aLen = %d\n", aLen);
+	return aLen;
 }
 
 
@@ -1716,18 +1717,16 @@ ReadLine()
 }
 
 
-Static Char    *
-AssembleZ80(Result, Line_)
-	Char           *Result;
-	Char           *Line_;
+int
+AssembleZ80(char *a, char *Line_)
 {
+	int aLen;
 	Char            Line[256];
 	uchar           ins;
 	Char            Mnemo[256], UMnemo[256];
 	Char            Operands[256], UOperands[256], Operands2[256];
 	Char            Op1[256], Op2[256], UOp1[256], UOp2[256];
 	uchar           ArrayScan, MnemoNum;
-	Char            a[256];
 	unsigned short  Op;
 	uchar           i, po, Addmode, reg, reg8, reg16, reg162, reg816,
 	                cond, reg81, reg82;
@@ -1761,10 +1760,10 @@ _LBreak:
 	if (MnemoNum == 0 && strcmp(Mnemo, "LD") && strcmp(Mnemo, "IM") &&
 	strcmp(Mnemo, "EX") && strcmp(Mnemo, "RST") && strcmp(Mnemo, "IN") &&
 	    strcmp(Mnemo, "OUT")) {	/* vielleicht ein Makro? */
-		AssembleMacro(Result, Line);
+		aLen = AssembleMacro(a, Line);
 		if (MacroError)
 			Errorstop("Unknown Mnemo!");
-		return Result;
+		return aLen;
 	}
 	/*
           *** 0 *** ohne Argument                                             OK!
@@ -2296,55 +2295,60 @@ _LBreak12:
 		Errorstop("Unknown Addressing Mode");
 	}
 	Op = Z80Opcode[MnemoNum - 1];
-	if (Op > 255)
-		sprintf(a, "%c", (Op & 255) + (Op >> 8));
-	else
-		sprintf(a, "%c", Op);
+	if (Op > 255) {
+		a[0] = Op;
+		a[1] = Op>>8;
+		aLen = 2;
+	} else {
+		a[0] = Op;
+		aLen = 1;
+	}
 	switch (Addmode) {
 
 	case 1:
-		a[strlen(a) - 1] += reg8;
+		a[aLen-1] += reg8;
 		break;
 
 	case 2:
 		if (Pass == 2) {
 			if (number > 255)
 				Errorstop("8 Bit!");
-			sprintf(a + strlen(a), "%c", number);
-		} else
-			strcat(a, " ");
+			a[aLen] = number;
+		}
+		aLen++;
 		break;
 
 	case 3:
-		a[strlen(a) - 1] += reg16 * 0x10;
+		a[aLen-1] += reg16 * 0x10;
 		break;
 
 	case 4:
-		a[strlen(a) - 1] += reg8;
+		a[aLen-1] += reg8;
 		break;
 
 	case 5:
 		if (Pass == 2) {
 			if (number > 255)
 				Errorstop("8 Bit!");
-			sprintf(a + strlen(a), "%c", number);
-		} else
-			strcat(a, " ");
+			a[aLen] = number;
+		}
+		aLen++;
 		break;
 
 	case 6:
-		a[strlen(a) - 1] += Z80OPCODECONV[reg816];
+		a[aLen-1] += Z80OPCODECONV[reg816];
 		break;
 
 	case 7:
-		a[strlen(a) - 1] += number * 8 + reg8;
+		a[aLen-1] += number * 8 + reg8;
 		break;
 
 	case 8:
-		if (Pass == 2)
-			sprintf(a + strlen(a), "%c", (number & 255) + (number >> 8));
-		else
-			strcat(a, "  ");
+		if (Pass == 2) {
+			a[aLen] = number;
+			a[aLen+1] = number>>8;
+		}
+		aLen += 2;
 		break;
 
 	case 9:
@@ -2353,47 +2357,48 @@ _LBreak12:
 			if (branch < -128 || branch > 127)
 				Errorstop("Label out of range!");
 			branch2 = branch;
-			sprintf(a + strlen(a), "%c", branch2);
-		} else
-			strcat(a, " ");
+			a[aLen] = branch2;
+		}
+		aLen++;
 		break;
 
 	case 0xa:
-		a[strlen(a) - 1] += cond * 8;
-		if (Pass == 2)
-			sprintf(a + strlen(a), "%c", (number & 255) + (number >> 8));
-		else
-			strcat(a, "  ");
+		a[aLen-1] += cond * 8;
+		if (Pass == 2) {
+			a[aLen] = number;
+			a[aLen++] = number>>8;
+		}
+		aLen += 2;
 		break;
 
 	case 0xb:
 		if (!strcmp(UMnemo, "JR") && cond > 3)
 			Errorstop("Invalid condition for JR");
-		a[strlen(a) - 1] += cond * 8;
+		a[aLen-1] += cond * 8;
 		if (Pass == 2) {
 			branch = number - opaddress - 2;
 			if (branch < -128 || branch > 127)
 				Errorstop("Label out of range!");
 			branch2 = branch;
-			sprintf(a + strlen(a), "%c", branch2);
-		} else
-			strcat(a, " ");
+			a[aLen] = branch2;
+		}
+		aLen++;
 		break;
 
 	case 0xc:
-		a[strlen(a) - 1] += cond * 8;
+		a[aLen-1] += cond * 8;
 		break;
 
 	case 0xd:
-		a[strlen(a) - 1] += reg * 8;
+		a[aLen-1] += reg * 8;
 		break;
 
 	case 0xe:
-		a[strlen(a) - 1] += reg * 8;
+		a[aLen-1] += reg * 8;
 		break;
 
 	case 0xf:
-		a[strlen(a) - 1] += reg162 * 0x10;
+		a[aLen-1] += reg162 * 0x10;
 		break;
 	}
 _Laddprefixes:
@@ -2403,20 +2408,21 @@ _Laddprefixes:
 	if (!strcmp(a, "\353") && Prefix > 0)	/* der Teufel weiß, warum */
 		Errorstop("ix/iy not allowed here!");
 	if (Prefix > 0) {
-		sprintf(STR5, "%c", Prefix + a);
-		strcpy(a, STR5);
+		memmove(&a[1], &a[0], aLen);
+		a[0] = Prefix;
+		aLen++;
 	}
 	if (addbytepresent)
-		sprintf(a + strlen(a), "%c", addbyte);
-	return strcpy(Result, a);
+		a[aLen++] = addbyte;
+	return aLen;
 }
 
 
-Static Char    *
-Assemble(Result, curL_)
-	Char           *Result;
-	Char           *curL_;
+int
+Assemble(char *a, char *curL_)
 {
+	int aLen;
+	Char aa[256];
 	Char            curL[256];
 	Char            Operand2[256], b[256];
 	Char            STR4[256];
@@ -2425,7 +2431,7 @@ Assemble(Result, curL_)
 	Char            STR6[256];
 
 	strcpy(curL, curL_);
-	*a = '\0';
+	aLen = 0;
 	if (curL[0] == '.') {	/* Pseudo-Opcode */
 		strcpy(STR4, curL + 1);
 		strcpy(curL, STR4);
@@ -2437,7 +2443,7 @@ Assemble(Result, curL_)
 			strcpy(Pseudo, curL);
 			*Operand = '\0';
 		}
-printf("operand: '%s'\n", Operand);
+//printf("operand: '%s'\n", Operand);
 		sprintf(STR4, "%.2s", Pseudo);
 		strcpy(Pseudo, UpCaseStr(STR5, STR4));
 		PseudoOK = false;
@@ -2516,7 +2522,7 @@ printf("operand: '%s'\n", Operand);
 			unknown = false;
 			number = GetNumber(Operand);
 			sprintf(StoreAddresses + strlen(StoreAddresses), "%c",
-				(ocodeIndex & 255) + (ocodeIndex >> 8) + (number & 255) +
+				(ocodeIndex & 255) + (ocodeIndex >> 8) + (number & 255) + //TODO
 				(((unsigned long) number) >> 8));
 		}
 		if (!strcmp(Pseudo, "AS"))
@@ -2544,16 +2550,14 @@ printf("operand: '%s'\n", Operand);
 			}
 			ins = strpos2(Operand, ",", 1);
 			if (ins > 0) {
-				UpCaseStr(a, strsub(STR4, Operand, ins + 1, 1));
+				UpCaseStr(aa, strsub(STR4, Operand, ins + 1, 1));
 				sprintf(Operand, "%.*s", ins - 1, strcpy(STR4, Operand));
-				if (!strcmp(a, "P"))
+				if (!strcmp(aa, "P"))
 					strcat(Operand, ".PRG");
-				if (!strcmp(a, "S"))
+				if (!strcmp(aa, "S"))
 					strcat(Operand, ".SEQ");
-				if (!strcmp(a, "U"))
+				if (!strcmp(aa, "U"))
 					strcat(Operand, ".USR");
-				*a = '\0';	/* nur als Hilfsvariable
-						 * benutzt */
 			}
 			strcpy(SaveName, Operand);
 			SaveAs = SAVE_AS_PRG;
@@ -2588,13 +2592,13 @@ printf("operand: '%s'\n", Operand);
 				ocodeIndex += times;
 			}
 			opaddress += times;
-			*a = '\0';
+			aLen = 0;
 		}
 		if (!strcmp(Pseudo, "BY") || !strcmp(Pseudo, "DB") || !strcmp(Pseudo, "B")) {
 			PseudoOK = true;
 			insold = 1;
 			strcat(Operand, ",");
-			*a = '\0';
+			aLen = 0;
 			do {
 				ins = strpos2(KillQuotes(STR4, strcpy(STR5, Operand + insold - 1)),
 					      ",", 1);
@@ -2608,14 +2612,15 @@ printf("operand: '%s'\n", Operand);
 					strsub(b, Operand2, 2, (int) (strlen(Operand2) - 2));
 					if (AsciiFlag == 0 && Pass == 2)
 						strcpy(b, SPetscii(STR4, b));
-					strcat(a, b);
+					strcpy(a+aLen, b); //TODO: security
+					aLen += strlen(b);
 				} else {
 					number = GetNumber(Operand2);
 					if (unknown)
 						number = 0;
 					if (number > 256)
 						Errorstop("Byte > 8 Bit!");
-					sprintf(a + strlen(a), "%c", (Char) number);
+					a[aLen++] = number;
 				}
 				insold += ins;
 			} while (true);
@@ -2623,7 +2628,7 @@ printf("operand: '%s'\n", Operand);
 		}
 		if (!strcmp(Pseudo, "LA") || !strcmp(Pseudo, "EQ")) {	/* .la oder .equate */
 			PseudoOK = true;
-printf("operand: '%s'\n", Operand);
+//printf("operand: '%s'\n", Operand);
 			ins = strpos2(Operand, "=", 1);
 			if (ins == 0)
 				Errorstop("\"=\" expected");
@@ -2646,6 +2651,7 @@ printf("operand: '%s'\n", Operand);
 			/* nach Petscii {!Bug in ASS16.BAS? */
 			if (AsciiFlag == 0 && Pass == 2)
 				strcpy(a, SPetscii(STR4, a));
+			aLen = strlen(a);
 		}
 		if (!strcmp(Pseudo, "TS")) {	/* Screencode */
 			PseudoOK = true;
@@ -2654,14 +2660,14 @@ printf("operand: '%s'\n", Operand);
 			strcpy(a, Operand + 1);
 			if (a[strlen(a) - 1] == QUOTE)
 				a[strlen(a) - 1] = '\0';
-			strcpy(a, SPetscii(STR4, a));
 			strcpy(a, SScrCode(STR4, a));
+			aLen = strlen(a);
 		}
 		if (!strcmp(Pseudo, "WO") || !strcmp(Pseudo, "DW") || !strcmp(Pseudo, "W")) {
 			PseudoOK = true;
 			insold = 1;
 			strcat(Operand, ",");
-			*a = '\0';
+			aLen = 0;
 			do {
 				ins = strpos2(strcpy(STR4, Operand + insold - 1), ",", 1);
 				if (ins == 0)	/* ! .by ohne Parameter ->
@@ -2671,8 +2677,8 @@ printf("operand: '%s'\n", Operand);
 				number = GetNumber(strsub(STR4, Operand, insold, ins - 1));
 				if (unknown)
 					number = 0;
-				sprintf(a + strlen(a), "%c",
-					(number & 255) + (((unsigned long) number) >> 8));
+				a[aLen++] = number;
+				a[aLen++] = number>>8;
 				insold += ins;
 			} while (true);
 	_LBreak2:	;
@@ -2807,14 +2813,14 @@ printf("operand: '%s'\n", Operand);
 	if (curL[strlen(curL) - 1] == COLON) {	/* Label definieren */
 		sprintf(STR4, "%.*s", (int) (strlen(curL) - 1), curL);
 		SetLabel(UpCaseStr(STR5, STR4), opaddress);
-		return strcpy(Result, "");
+		return 0;
 	}
 	if (Cpu == 80)
-		AssembleZ80(a, curL);
+		aLen = AssembleZ80(a, curL);
 	else
-		Assemble65xx(a, curL);
+		aLen = Assemble65xx(a, curL);
 _Lcodeok:
-	return strcpy(Result, a);
+	return aLen;
 }
 
 /* Main */
@@ -2826,6 +2832,7 @@ main(argc, argv)
 	int             argc;
 	Char           *argv[];
 {
+	int aLen;
 	Static Char*     ParameterFile;
 	char*	ins;
 	Char            STR2[256];
@@ -3002,7 +3009,7 @@ main(argc, argv)
 			currentline = reallinenumber[i];
 			CurL = ReadLine();
 //printf("%x\n", CurL);
-printf("'%s'\n", CurL);
+//printf("'%s'\n", CurL);
 //printf("\n\n\nXX'%c' '%c' '%c'XX\n\n\n\n", CurL[0], CurL[1], CurL[2]);
 			if (*CurL == '\0') break;
 			i++;
@@ -3018,22 +3025,22 @@ printf("'%s'\n", CurL);
 				strcpy(CurL, "ANOP");	/* Zeile ignorieren */
 				IgnoreNextEnd = false;
 			}
-			Assemble(a, CurL);
-			if (*a != '\0' && *StoreAddresses == '\0')
+			aLen = Assemble(a, CurL);
+			if (aLen && *StoreAddresses == '\0')
 				Errorstop("Base missing!");
 			if (Pass == 2) {
-				if (ocodeIndex + strlen(a) > MAXOCODE)
+				if (ocodeIndex + aLen > MAXOCODE)
 					Errorstop("Object code overflow!");
-				FORLIM1 = strlen(a);
+				FORLIM1 = aLen;
 				for (j = 1; j <= FORLIM1; j++)
 					ocode[ocodeIndex + j - 1] = a[j - 1];
-				ocodeIndex += strlen(a);
+				ocodeIndex += aLen;
 			}
-			opaddress += strlen(a);
+			opaddress += aLen;
 			if (Show == true && Pass == 2) {
 				sprintf(PrintLine, "%s ", Hex(STR4, oldopaddress, 4));
-				if (*a != '\0') {
-					FORLIM1 = strlen(a);
+				if (aLen) {
+					FORLIM1 = aLen;
 					for (ShowIndex = 1; ShowIndex <= FORLIM1; ShowIndex++)
 						sprintf(PrintLine + strlen(PrintLine), "%s ",
 							Hex(STR4, a[ShowIndex - 1], 2));
