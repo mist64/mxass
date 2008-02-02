@@ -118,6 +118,7 @@
             00:11:33:18 ...!
   31.01.08  02:00:00:00 Port to C...
   02.02.08  04:29:00:00 ...
+13:55
 */
 
 #include <p2c/p2c.h>
@@ -530,7 +531,7 @@ TrimSourceText(char *Filename_, int i)
 		if (NextLineInBuffer)
 			strcpy(Line, Line2);
 		else {
-			fgets(Line, 256, actSourcefile);
+			if (!fgets(Line, 256, actSourcefile)) break;
 			if ((TEMP = strchr(Line, '\n')))
 				*TEMP = 0;
 			if ((TEMP = strchr(Line, '\r')))
@@ -649,7 +650,6 @@ TrimSourceText(char *Filename_, int i)
 		}
 	} while (!(feof(actSourcefile) && NextLineInBuffer == false));
 	fclose(actSourcefile);
-	actSourcefile = NULL;
 	SourceFiles--;		/* dem Aufrufer wieder die richtige Ebene übergeben */
 	return i;
 }
