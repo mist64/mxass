@@ -208,12 +208,6 @@ typedef int    numbertype;
 /* Arrays */
 
 
-Static long     POT2[24] = {
-	1, 2, 4, 8, 16, 32, 64, 128, 0x100, 0x200, 0x400, 0x800, 0x1000, 0x2000,
-	0x4000, 0x8000L, 0x10000L, 0x20000L, 0x40000L, 0x80000L, 0x100000L,
-	0x200000L, 0x400000L, 0x800000L
-};
-
 Char            STR1[14];
 Char            STR3[10];
 
@@ -694,7 +688,7 @@ HexDec(H_)
 		if (ins == 0)
 			Errorstop("Wrong hex number!");
 		ins--;
-		number += (long) ((double) (ins * POT2[(strlen(H) - i) * 4]));
+		number += (long) ((double) (ins << (strlen(H) - i) * 4));
 	}
 	return number;
 }
@@ -796,8 +790,8 @@ GetNumber(S_)
 	unsigned short  FORLIM;
 	short           TEMP;
 
-	strcpy(S, S_);
-	strcpy(S, Trim(STR4, S));
+	strcpy(S, Trim(STR4, S_));
+	if (!*S) Errorstop("Expression expected!");
 	if (S[0] == '+' || S[0] == '-') {	/* lokales Label */
 		locallabelflag = true;
 		strcpy(realS, S);
@@ -805,7 +799,7 @@ GetNumber(S_)
 		strcpy(S, STR4);
 	} else
 		locallabelflag = false;
-	if (S[0] == '*' && *S != '\0') {
+	if (S[0] == '*') {
 		if (strlen(S) > 1)
 			ins = FindCalcSeparator(strcpy(STR4, S + 1)) + 1;
 		else
@@ -828,46 +822,48 @@ GetNumber(S_)
 		if (locallabelflag)
 			strcpy(S, realS);
 	}
-	if (S[0] == '*' && *S != '\0') {	/* aktuelle Assembly-Adresse */
+	switch(S[0]) {
+	case '*':	/* aktuelle Assembly-Adresse */
 		number = opaddress;
-		*S = '\0';
-	}
-	if (S[0] == '$' && *S != '\0') {	/* hex-Konstante */
-		number = HexDec(strcpy(STR5, S + 1));
-		*S = '\0';
-	}
-	if (S[0] == '%' && *S != '\0') {	/* bin-Konstante */
-		number = BinDec(strcpy(STR5, S + 1));
-		*S = '\0';
-	}
-	if (S[0] == QUOTE && *S != '\0') {	/* ASCII-Konstante */
+		break;
+	case '$':	/* hex-Konstante */
+		number = HexDec(S+1);
+		break;
+	case '%':	/* bin-Konstante */
+		number = BinDec(S+1);
+		break;
+	case '"':	/* ASCII-Konstante */
 		if (S[2] != QUOTE)
 			Errorstop("ASCII constant too long!");
-		a = S[1];
+		number = S[1];
 		if (AsciiFlag == 0)
-			a = Petscii(a);
-		number = a;
-		*S = '\0';
-	}
-	if (S[0] == '<' && *S != '\0') {	/* Low-Byte */
-		number = GetNumber(strcpy(STR5, S + 1)) & 255;
-		*S = '\0';
-	}
-	if (S[0] == '>' && *S != '\0') {	/* High-Byte */
-		number = ((unsigned long) GetNumber(strcpy(STR5, S + 1))) >> 8;
-		*S = '\0';
-	}
-	if (S[0] == '(' && *S != '\0') {	/* Ausdruck in Klammern */
+			number = Petscii(number);
+		break;
+	case '<':	/* Low-Byte */
+		number = GetNumber(S+1) & 255;
+		break;
+	case '>':	/* High-Byte */
+		number = ((unsigned long) GetNumber(S+1)) >> 8;
+		break;
+	case '(':	/* Ausdruck in Klammern */
 		if (S[strlen(S) - 1] != ')')
 			Errorstop("Brackets error!");
 		number = GetNumber(strsub(STR5, S, 2, (int) (strlen(S) - 2)));
-		*S = '\0';
-	}
-	if (*S != '\0' && isdigit(S[0])) {	/* dezimale Konstante */
+		break;
+	case '0':
+	case '1':
+	case '2':
+	case '3':
+	case '4':
+	case '5':
+	case '6':
+	case '7':
+	case '8':
+	case '9':
+		/* dezimale Konstante */
 		ValCode = (sscanf(S, "%ld", &number) == 0);	/* ! ValCode auswerten! */
-		*S = '\0';
-	}
-	if (*S != '\0') {	/* Label */
+		break;
+	default:	/* Label */
 		strcpy(S, UpCaseStr(STR5, S));
 		if (locallabelflag) {	/* lokales Label */
 			if (Pass == 1)
