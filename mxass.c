@@ -160,7 +160,7 @@ typedef unsigned short uint16_t;
 
 #define CALCSEP         "\001\002\003\004\005\006\007\b\t\n\013\f\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037!#&'*+,-./:;=?@[\\]^`{|}~\177"
 
-#define KEINRECHENZEICHEN  '\0'
+#define NOOPERATOR  '\0'
 
 #define NONE8           0xff
 
@@ -785,12 +785,12 @@ GetNumber(S_)
 	Char            S2[256];
 	numbertype      number, number2;
 	uchar           ins;
-	Char            Rechenzeichen;
+	Char            Operator;
 	uchar           i;
 	Char            a;
 	short           ValCode;
 	unsigned short  LLabels, oldfound, ArrayScan, help;
-	boolean         Labelfound, RzOK;
+	boolean         Labelfound, OperatorOK;
 	Char            STR4[256];
 	Char            STR5[256];
 	unsigned short  FORLIM;
@@ -812,10 +812,10 @@ GetNumber(S_)
 			ins = 0;
 	} else
 		ins = FindCalcSeparator(S);
-	if (ins > 0) {		/* komplexer Ausdruck mit Rechenzeichen */
+	if (ins > 0) {		/* komplexer Ausdruck mit Operator */
 		strcpy(S2, S + ins);
 		number2 = GetNumber(S2);	/* rekursiv! */
-		Rechenzeichen = S[ins - 1];
+		Operator = S[ins - 1];
 		if (locallabelflag) {
 			sprintf(STR5, "%.*s", ins, realS);
 			Trim(S, STR5);	/* echtes Label wiederherstellen */
@@ -824,7 +824,7 @@ GetNumber(S_)
 			strcpy(S, Trim(STR5, STR4));
 		}
 	} else {
-		Rechenzeichen = KEINRECHENZEICHEN;
+		Operator = NOOPERATOR;
 		if (locallabelflag)
 			strcpy(S, realS);
 	}
@@ -873,76 +873,46 @@ GetNumber(S_)
 			if (Pass == 1)
 				unknown = true;
 			else {
-				LLabels = 0;
-				oldfound = 0;
-				do {
-					ArrayFound = false;
-					for (ArrayScan = oldfound; ArrayScan < Labels; ArrayScan++) {
-//printf("label scan: '%s'=%04x\n", xLabel[ArrayScan], Value[ArrayScan]);
-						if (!strcmp(xLabel[ArrayScan], S)) {
-//printf("found!\n");
-							help = ArrayScan;
-							ArrayFound = true;
-							break;
-						}
-					}
-					if (!ArrayFound)
-						break;
-					LValue[LLabels] = Value[help];
-printf("Label: %04x!\n", Value[help]);
-					LLabels++;
-					oldfound = help + 1;
-				} while (true);
-				// finished scanning through all symbols
-				if (LLabels == 0)
-					Errorstop("(1)Local label not found!");
 				if (S[0] == '+')	/* nur Vorwärtsverweise erlaubt */
 					number = 0xFFFF;
 				else	/* '-' */
 					number = 0;
-				for (i = 0; i < LLabels; i++) {
-printf("LValue[i]: %04x, opaddress = %04x, number=%04x\n", LValue[i], opaddress, number);
-					if (((S[0] == '+') && (LValue[i] > opaddress && number > LValue[i])) ||
-						(LValue[i] <= opaddress && number < LValue[i]))
-							number = LValue[i];
-				}
-				if (number == 0)
-					Errorstop("(2)Local label not found!");
-					/*
-					 * Nebeneffekt: lokales Label darf
-					 * nicht Wert 0 haben
-					 */
+				ArrayFound = 0;
+				for (ArrayScan = 0; ArrayScan < Labels; ArrayScan++)
+					if (!strcmp(xLabel[ArrayScan], S))
+						if (((S[0] == '+') && (Value[ArrayScan] > opaddress && number > Value[ArrayScan])) ||
+							(Value[ArrayScan] <= opaddress && number < Value[ArrayScan])) {
+							number = Value[ArrayScan];
+							ArrayFound = 1;
+						}
+				if (!ArrayFound)
+					Errorstop("Local label not found!");
+				/* Nebeneffekt: lokales Label darf nicht Werte 0 bzw. 0xFFFF haben */
 			}
 		} else {	/* globales Label */
 			ArrayFound = false;
-			if (Labels > 0) {
-				FORLIM = Labels;
-				for (ArrayScan = 0; ArrayScan < FORLIM; ArrayScan++) {
-					if (!strcmp(xLabel[ArrayScan], S)) {
-						help = ArrayScan;
-						ArrayFound = true;
-						goto _LBreak3;
-					}
+			for (ArrayScan = 0; ArrayScan < Labels; ArrayScan++) {
+				if (!strcmp(xLabel[ArrayScan], S)) {
+					help = ArrayScan;
+					ArrayFound = true;
+					break;
 				}
 			}
-	_LBreak3:
-			if (!ArrayFound) {	/* Label nicht gefunden *//* v
-						 * ielleicht ein
-						 * Makro-Parameter? */
+			if (ArrayFound) {
+				number = Value[help];
+			} else {	/* Label nicht gefunden - vielleicht ein Makro-Parameter? */
 				Labelfound = false;
 				if (MacroLabels > 0) {
 					ArrayFound = false;
 					if (MacroLabels > 0) {
-						FORLIM = MacroLabels;
-						for (ArrayScan = 0; ArrayScan < FORLIM; ArrayScan++) {
+						for (ArrayScan = 0; ArrayScan < MacroLabels; ArrayScan++) {
 							if (!strcmp(MacroLabel[ArrayScan], S)) {
 								help = ArrayScan;
 								ArrayFound = true;
-								goto _LBreak4;
+								break;
 							}
 						}
 					}
-			_LBreak4:
 					if (ArrayFound) {
 						number = MacroValue[help];
 						Labelfound = true;
@@ -954,34 +924,31 @@ printf("LValue[i]: %04x, opaddress = %04x, number=%04x\n", LValue[i], opaddress,
 					else
 						Errorstop("Label not found!");
 				}
-			} else
-				number = Value[help];
+			}
 		}
 	}
-	RzOK = false;
-	if (Rechenzeichen == '+') {
+	OperatorOK = false;
+	if (Operator == '+') {
 		number += number2;
-		RzOK = true;
+		OperatorOK = true;
 	}
-	if (Rechenzeichen == '-') {
+	if (Operator == '-') {
 		number -= number2;
-		RzOK = true;
+		OperatorOK = true;
 	}
-	if (Rechenzeichen == '*') {
+	if (Operator == '*') {
 		number *= number2;
-		RzOK = true;
+		OperatorOK = true;
 	}
-	if (Rechenzeichen == '/') {
+	if (Operator == '/') {
 		number /= number2;
-		RzOK = true;
+		OperatorOK = true;
 	}
-	if (Rechenzeichen == KEINRECHENZEICHEN)
-		RzOK = true;
-	if (!RzOK)
-		Errorstop("Wrong calcualtion character!");
+	if (Operator == NOOPERATOR)
+		OperatorOK = true;
+	if (!OperatorOK)
+		Errorstop("Wrong operator!");
 	return number;
-
-	/* ! number:=Value[help]; ??? */
 }
 
 
