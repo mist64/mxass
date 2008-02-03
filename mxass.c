@@ -120,11 +120,20 @@
   02.02.08  04:29:00:00 ...
             01:53:00:00 ... (Debugging)
             01:10:00:00 ...
+19:27
 */
 
-#include <p2c/p2c.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
+typedef int    numbertype;
+typedef int boolean;
 typedef unsigned short uint16_t;
+#define _FNSIZE 256
+#define false 0
+#define true (!false)
+
 
 #define MNEMOS          107	/* Anzahl der bekannten Mnemos */
 #define ADDMODES        23
@@ -202,139 +211,192 @@ typedef unsigned short uint16_t;
 #define SAVE_AS_T64 5
 #define SAVE_AS_C64 6
 
-typedef int    numbertype;
-
-
 /* Arrays */
 
 
-Char            STR1[14];
-Char            STR3[10];
+char            STR1[14];
+char            STR3[10];
 
-Static Char     Z80REG[Z80REGS][5] = {
+char     Z80REG[Z80REGS][5] = {
 	"B", "C", "D", "E", "H", "L", "L", "A"
 };
 
-Static Char     Z80REG8[Z80REG8S][5] = {
+char     Z80REG8[Z80REG8S][5] = {
 	"B", "C", "D", "E", "H", "L", "(HL)", "A"
 };
 
-Static Char     Z80REG16[Z80REG16S][3] = {
+char     Z80REG16[Z80REG16S][3] = {
 	"BC", "DE", "HL", "SP"
 };
 
-Static Char     Z80REG162[Z80REG162S][3] = {
+char     Z80REG162[Z80REG162S][3] = {
 	"BC", "DE", "HL", "AF"
 };
 
-Static Char     Z80REG816[Z80REG816S][5] = {
+char     Z80REG816[Z80REG816S][5] = {
 	"B", "BC", "C", "D", "DE", "E", "H", "HL", "L", "(HL)", "SP", "A"
 };
 
-Static Char     Z80COND[Z80CONDS][3] = {
+char     Z80COND[Z80CONDS][3] = {
 	"NZ", "Z", "NC", "C", "PO", "PE", "P", "M"
 };
 
-Static uchar    Z80REGCONV1[Z80REG8S] = {
+unsigned char    Z80REGCONV1[Z80REG8S] = {
 	0, 2, 3, 5, 6, 8, 9, 0xb
 };
 
-Static uchar    Z80REGCONV2[Z80REG162S] = {
+unsigned char    Z80REGCONV2[Z80REG162S] = {
 	1, 4, 7, 0xff
 };
 
-Static uchar    Z80OPCODECONV[Z80REG816S] = {
+unsigned char    Z80OPCODECONV[Z80REG816S] = {
 	0, 0x6, 0x8, 0x10, 0x16, 0x18, 0x20, 0x26, 0x28, 0x30, 0x36, 0x38
 };
 
-Static char   *SourceText;
-Static unsigned short reallinenumber[MAXLINES + 1];
-Static unsigned short belongstoFile[MAXLINES + 1];
-Static Char     Mnemo[MNEMOS][4];
-Static unsigned short Opcode[MNEMOS][ADDMODES];
+char   *SourceText;
+unsigned short reallinenumber[MAXLINES + 1];
+unsigned short belongstoFile[MAXLINES + 1];
+char     Mnemo[MNEMOS][4];
+unsigned short Opcode[MNEMOS][ADDMODES];
 
-Static Char     Z80Mnemo[Z80MNEMOS][5];
-Static uchar    Z80Addmode[Z80MNEMOS];
-Static uint16_t Z80Opcode[Z80MNEMOS];
+char     Z80Mnemo[Z80MNEMOS][5];
+unsigned char    Z80Addmode[Z80MNEMOS];
+uint16_t Z80Opcode[Z80MNEMOS];
 
-Static uchar    RegisterInvolved[MNEMOS];
-Static Char     xLabel[MAXLABELS + 1][MAXNAMELENGTH + 1];
-Static unsigned short Value[MAXLABELS + 1];
-Static unsigned short LValue[MAXLABELS + 1];
-Static Char     SourceFile[MAXFILES + 1][256];
-Static Char     MacroName[MAXMACROS + 1][MAXNAMELENGTH + 1];
-Static char    MacroSourceText[MAXMACROS + 1][MAXMACROLENGTH];
-Static unsigned short MacroSourceEnd[MAXMACROS + 1];
-Static Char     MacroOperand[MAXMACROS + 1][256];
-Static Char     MacroLabel[MAXMACPARA + 1][MAXNAMELENGTH + 1];
-Static unsigned short MacroValue[MAXMACPARA + 1];
-Static uchar    ocode[MAXOCODE + 1];
+unsigned char    RegisterInvolved[MNEMOS];
+char     xLabel[MAXLABELS + 1][MAXNAMELENGTH + 1];
+unsigned short Value[MAXLABELS + 1];
+unsigned short LValue[MAXLABELS + 1];
+char     SourceFile[MAXFILES + 1][256];
+char     MacroName[MAXMACROS + 1][MAXNAMELENGTH + 1];
+char    MacroSourceText[MAXMACROS + 1][MAXMACROLENGTH];
+unsigned short MacroSourceEnd[MAXMACROS + 1];
+char     MacroOperand[MAXMACROS + 1][256];
+char     MacroLabel[MAXMACPARA + 1][MAXNAMELENGTH + 1];
+unsigned short MacroValue[MAXMACPARA + 1];
+unsigned char    ocode[MAXOCODE + 1];
 /* Variablen */
-Static Char     Loads[256];	/* TODO: Must be done with arrays */
-//Static Char     StoreAddresses[256];	/* TODO: Must be done with arrays */
+char     Loads[256];	/* TODO: Must be done with arrays */
+//char     StoreAddresses[256];	/* TODO: Must be done with arrays */
 #define MAXStoreAddresses 200
 struct {
 	uint16_t	ocodeindex;
 	uint16_t	memoryaddress;
 } StoreAddresses[MAXStoreAddresses];
 int nStoreAddresses;
-Static unsigned short LoadAddress, Time;	/* TODO absolute $40:$6C; */
-Static unsigned short StartTime;
-Static double   AssemblyTime;
-Static boolean  Show;
-Static Char     PrintLine[256];
-Static unsigned short Labels, MacroLabels;
-Static boolean  MacroError;
-Static Char     actl[256];
-Static uchar    Pass;
-Static boolean  unknown;
-Static uchar    AsciiFlag, Cpu;
-Static boolean  CpuIllegal;
-Static unsigned short opaddress, oldopaddress, startjumpaddress, currentline;
-Static Char     Filename[256];
-Static uchar    SaveAs;
-Static Char     SaveName[256];
-Static boolean  Symbols;
-Static unsigned short SourceFiles, lines, reallines;
-Static Char     Pseudo[256], Operand[256];
-Static numbertype number, number2;
-Static unsigned short startaddress, times, insold;
-Static Char     a[256];
-Static unsigned short Macros;
-Static uchar    ShowIndex;
-Static Char     Header[27];	/* TODO: must be an array instead; should be
+unsigned short LoadAddress, Time;	/* TODO absolute $40:$6C; */
+unsigned short StartTime;
+double   AssemblyTime;
+boolean  Show;
+char     PrintLine[256];
+unsigned short Labels, MacroLabels;
+boolean  MacroError;
+char     actl[256];
+unsigned char    Pass;
+boolean  unknown;
+unsigned char    AsciiFlag, Cpu;
+boolean  CpuIllegal;
+unsigned short opaddress, oldopaddress, startjumpaddress, currentline;
+char     Filename[256];
+unsigned char    SaveAs;
+char     SaveName[256];
+boolean  Symbols;
+unsigned short SourceFiles, lines, reallines;
+char     Pseudo[256], Operand[256];
+numbertype number, number2;
+unsigned short startaddress, times, insold;
+char     a[256];
+unsigned short Macros;
+unsigned char    ShowIndex;
+char     Header[27];	/* TODO: must be an array instead; should be
 				 * local */
 /* neu hinzugefügte Variablen */
-Static unsigned short i;
-Static uchar    j, ins, ins2;
-Static Char     SwitchParameter[11];
-Static FILE    *OpcodesFile;
-Static Char*    CurL;
-Static Char     actMacroName[256];
-Static Char     actMacroOperand[256];
-Static unsigned short help, ArrayScan;
-Static boolean  ArrayFound, PseudoOK;
-Static unsigned short ocodeIndex, SourceIndex, SourceEnd, MacroSourceIndex;
-Static FILE    *SaveFile;
-Static FILE    *SymbolsFile;
-Static boolean  SizeAccu, SizeIndex;
+unsigned short i;
+unsigned char    j, ins, ins2;
+char     SwitchParameter[11];
+FILE    *OpcodesFile;
+char*    CurL;
+char     actMacroName[256];
+char     actMacroOperand[256];
+unsigned short help, ArrayScan;
+boolean  ArrayFound, PseudoOK;
+unsigned short ocodeIndex, SourceIndex, SourceEnd, MacroSourceIndex;
+FILE    *SaveFile;
+FILE    *SymbolsFile;
+boolean  SizeAccu, SizeIndex;
 
-Static boolean  IgnoreNextEnd;
+boolean  IgnoreNextEnd;
 
-Static boolean  TransErr;
+boolean  TransErr;
 
-Static Char     SaveFile_NAME[_FNSIZE];
-Static Char     SymbolsFile_NAME[_FNSIZE];
+char     SaveFile_NAME[_FNSIZE];
+char     SymbolsFile_NAME[_FNSIZE];
+
+/* Store in "ret" the substring of length "len" starting from "pos" (1-based).
+   Store a shorter or null string if out-of-range.  Return "ret". */
+
+char *strsub(ret, s, pos, len)
+register char *ret, *s;
+register int pos, len;
+{
+    register char *s2;
+
+    if (--pos < 0 || len <= 0) {
+        *ret = 0;
+        return ret;
+    }
+    while (pos > 0) {
+        if (!*s++) {
+            *ret = 0;
+            return ret;
+        }
+        pos--;
+    }
+    s2 = ret;
+    while (--len >= 0) {
+        if (!(*s2++ = *s++))
+            return ret;
+    }
+    *s2 = 0;
+    return ret;
+}
+
+
+/* Return the index of the first occurrence of "pat" as a substring of "s",
+   starting at index "pos" (1-based).  Result is 1-based, 0 if not found. */
+
+int strpos2(s, pat, pos)
+char *s;
+register char *pat;
+register int pos;
+{
+    register char *cp, ch;
+    register int slen;
+
+    if (--pos < 0)
+        return 0;
+    slen = strlen(s) - pos;
+    cp = s + pos;
+    if (!(ch = *pat++))
+        return 0;
+    pos = strlen(pat);
+    slen -= pos;
+    while (--slen >= 0) {
+        if (*cp++ == ch && !strncmp(cp, pat, pos))
+            return cp - s;
+    }
+    return 0;
+}
 
 
 /* neue Funktionen/Prozeduren für Pascal */
-Static Char    *
+char    *
 UpCaseStr(Result, S_)
-	Char           *Result;
-	Char           *S_;
+	char           *Result;
+	char           *S_;
 {
-	Char            S[256];
-	uchar           i, FORLIM;
+	char            S[256];
+	unsigned char           i, FORLIM;
 
 	strcpy(S, S_);
 	FORLIM = strlen(S);
@@ -344,14 +406,14 @@ UpCaseStr(Result, S_)
 }
 
 
-Static Char    *
+char    *
 Trim(Result, S_)
-	Char           *Result;
-	Char           *S_;
+	char           *Result;
+	char           *S_;
 {
 //printf("Trim: '%s'\n", S_);
-	Char            S[256];
-	Char            STR4[256];
+	char            S[256];
+	char            STR4[256];
 
 	strcpy(S, S_);
 	if (*S == '\0')
@@ -368,16 +430,16 @@ Trim(Result, S_)
 }
 
 
-Static Char    *
+char    *
 Hex(Result, a, decimals)
-	Char           *Result;
+	char           *Result;
 	unsigned short  a;
-	uchar           decimals;
+	unsigned char           decimals;
 {
-	uchar           i;
-	Char            s[256];
-	Char            STR4[256];
-	Char            STR5[256];
+	unsigned char           i;
+	char            s[256];
+	char            STR4[256];
+	char            STR5[256];
 
 	*s = '\0';
 	for (i = 1; i <= decimals; i++) {
@@ -389,7 +451,7 @@ Hex(Result, a, decimals)
 }
 
 
-Static uchar 
+unsigned char 
 HiHi(number)
 	long            number;
 {
@@ -397,13 +459,13 @@ HiHi(number)
 }
 
 
-Static Char    *
+char    *
 Right4(Result, A)
-	Char           *Result;
+	char           *Result;
 	unsigned short  A;
 {
-	Char            S[256];
-	Char            STR4[256];
+	char            S[256];
+	char            STR4[256];
 
 	sprintf(S, "%u", A);
 	while (strlen(S) < 4)
@@ -412,13 +474,13 @@ Right4(Result, A)
 }
 
 
-Static uchar 
+unsigned char 
 FindAny(Sub, Main)
-	Char           *Sub, *Main;
+	char           *Sub, *Main;
 {
 //printf("FindAny: Sub='%s', Main='%s'\n", Sub, Main);
-	uchar           l, FORLIM;
-	Char            STR4[256];
+	unsigned char           l, FORLIM;
+	char            STR4[256];
 
 	FORLIM = strlen(Main);
 	for (l = 1; l <= FORLIM; l++) {
@@ -430,15 +492,15 @@ FindAny(Sub, Main)
 }
 
 
-Static Char    *
+char    *
 KillQuotes(Result, T_)
-	Char           *Result;
-	Char           *T_;
+	char           *Result;
+	char           *T_;
 {
-	Char            T[256];
-	uchar           ins1, ins2, l;
-	Char            STR4[256];
-	Char            STR5[256];
+	char            T[256];
+	unsigned char           ins1, ins2, l;
+	char            STR4[256];
+	char            STR5[256];
 
 	strcpy(T, T_);
 	do {
@@ -461,29 +523,29 @@ _LBreak:
 }
 
 
-Static uchar 
+unsigned char 
 FindSeparator(S)
-	Char           *S;
+	char           *S;
 {
-	Char            STR4[256];
+	char            STR4[256];
 
 	return (FindAny(SEP, KillQuotes(STR4, S)));
 }
 
 
-Static uchar 
+unsigned char 
 FindCalcSeparator(S)
-	Char           *S;
+	char           *S;
 {
-	Char            STR4[256];
+	char            STR4[256];
 
 	return (FindAny(CALCSEP, KillQuotes(STR4, S)));
 }
 
 
-Static boolean 
+boolean 
 FindFile(Filename)
-	Char           *Filename;
+	char           *Filename;
 {
 	printf("ERROR: asm1!\n");
 	exit(1);
@@ -497,22 +559,22 @@ FindFile(Filename)
 
 
 /* Funktionen/Prozeduren */
-static int 
+int 
 TrimSourceText(char *Filename_, int i)
 {
-	Char            Filename[256];
+	char            Filename[256];
 	FILE           *actSourcefile;
 	unsigned short  actReallinenumber;
-	Char            Line[256], Line2[256];
-	uchar           ins, ins2;
-	Char            IncFile[256];
+	char            Line[256], Line2[256];
+	unsigned char           ins, ins2;
+	char            IncFile[256];
 	boolean         IncFound, NextLineInBuffer;
-	Char            testequ[256];
-	Char            STR4[256];
-	Char            STR5[256], STR6[256];
-	Char           *TEMP;
-	Char            STR7[256];
-	Char            STR9[256];
+	char            testequ[256];
+	char            STR4[256];
+	char            STR5[256], STR6[256];
+	char           *TEMP;
+	char            STR7[256];
+	char            STR9[256];
 
 	strcpy(Filename, Filename_);
 	actSourcefile = NULL;
@@ -654,9 +716,9 @@ TrimSourceText(char *Filename_, int i)
 }
 
 
-Static Void 
+void 
 Errorstop(S)
-	Char           *S;
+	char           *S;
 {
 	printf("Line %u: %s\n", currentline, S);
 	puts(CurL);
@@ -664,18 +726,18 @@ Errorstop(S)
 }
 
 
-Static long 
+long 
 HexDec(H_)
-	Char           *H_;
+	char           *H_;
 {
 	/* hex -> dezimal */
-	Char            H[256];
-	uchar           i;
+	char            H[256];
+	unsigned char           i;
 	numbertype      number;
-	Char            d;
-	uchar           ins;
-	Char            STR4[256];
-	uchar           FORLIM;
+	char            d;
+	unsigned char           ins;
+	char            STR4[256];
+	unsigned char           FORLIM;
 
 	strcpy(H, H_);
 	strcpy(H, UpCaseStr(STR4, H));
@@ -694,14 +756,14 @@ HexDec(H_)
 }
 
 
-Static unsigned short 
+unsigned short 
 BinDec(H)
-	Char           *H;
+	char           *H;
 {
 	/* bin -> dezimal */
-	uchar           i;
+	unsigned char           i;
 	unsigned short  number;
-	uchar           d, FORLIM;
+	unsigned char           d, FORLIM;
 
 	number = 0;
 	FORLIM = strlen(H);
@@ -715,12 +777,12 @@ BinDec(H)
 }
 
 
-Static Char 
+char 
 Petscii(S)
-	Char            S;
+	char            S;
 {
 	/* wandelt einzelnes Zeichen von ASCII nach PETSCII */
-	uchar           a;
+	unsigned char           a;
 
 	a = S;
 	if (a > 64 && a < 91)
@@ -731,10 +793,10 @@ Petscii(S)
 }
 
 
-Static Char    *
+char    *
 SPetscii(Result, A)
-	Char           *Result;
-	Char           *A;
+	char           *Result;
+	char           *A;
 {
 	/* wandelt String von ASCII nach PETSCII */
 	int i;
@@ -746,10 +808,10 @@ SPetscii(Result, A)
 }
 
 
-Static Char    *
+char    *
 SScrCode(Result, A)
-	Char           *Result;
-	Char           *A;
+	char           *Result;
+	char           *A;
 {
 	/* wandelt Str PETSCII nach Screencode */
 	printf("ERROR: asm3!\n");
@@ -769,24 +831,24 @@ SScrCode(Result, A)
 }
 
 
-Static long 
+long 
 GetNumber(S_)
-	Char           *S_;
+	char           *S_;
 {
-	Char            S[256];
+	char            S[256];
 	boolean         locallabelflag;
-	Char            realS[256];
-	Char            S2[256];
+	char            realS[256];
+	char            S2[256];
 	numbertype      number, number2;
-	uchar           ins;
-	Char            Operator;
-	uchar           i;
-	Char            a;
+	unsigned char           ins;
+	char            Operator;
+	unsigned char           i;
+	char            a;
 	short           ValCode;
 	unsigned short  LLabels, oldfound, ArrayScan, help;
 	boolean         Labelfound, OperatorOK;
-	Char            STR4[256];
-	Char            STR5[256];
+	char            STR4[256];
+	char            STR5[256];
 	unsigned short  FORLIM;
 	short           TEMP;
 
@@ -948,12 +1010,12 @@ GetNumber(S_)
 }
 
 
-Static Void 
+void 
 SetLabel(L_, V)
-	Char           *L_;
+	char           *L_;
 	unsigned short  V;
 {
-	Char            L[256];
+	char            L[256];
 	unsigned short  help, ArrayScan, FORLIM;
 
 	/* TODO: must be an array instead! */
@@ -1012,7 +1074,7 @@ _LBreak:	;
 }
 
 
-Static Char    *
+char    *
 MacroReadLine(Num)
 	unsigned short  Num;
 {
@@ -1033,23 +1095,23 @@ int
 AssembleMacro(char *a, char *Line_)
 {
 	char *curL;
-	Char            Line[256];
+	char            Line[256];
 	unsigned short  MacroNum;
-	Char            Mask[256];
-	uchar           ins1, ins2;
-	Char            V[256];
-	Char            La[256];
+	char            Mask[256];
+	unsigned char           ins1, ins2;
+	char            V[256];
+	char            La[256];
 	unsigned short  opaddresssaved;
 	int aLen, bLen;
 	char b[255];
-	Char            Statement[256];
-	Char            Operand[256], Operand2[256];
-	Char            byteword;
-	Char            testequ[256];
-	Char            STR4[256];
+	char            Statement[256];
+	char            Operand[256], Operand2[256];
+	char            byteword;
+	char            testequ[256];
+	char            STR4[256];
 	unsigned short  FORLIM;
-	Char            STR5[256];
-	Char            STR6[256];
+	char            STR5[256];
+	char            STR6[256];
 
 	strcpy(Line, Line_);
 	if (Line[0] == '*') {
@@ -1115,7 +1177,7 @@ _LBreak:
 							number = 0;
 						if (number > 256)
 							Errorstop("Byte > 8 Bit!");
-						sprintf(a + strlen(a), "%c", (Char) number);
+						sprintf(a + strlen(a), "%c", (char) number);
 					}
 					insold += ins;
 				} while (true);
@@ -1319,27 +1381,27 @@ int
 Assemble65xx(char *a, char *Line_)
 {
 	int aLen;
-	Char            Line[256];
-	Char            actMnemo[4];
+	char            Line[256];
+	char            actMnemo[4];
 	unsigned short  ArrayScan, MnemoNum;
 
-	uchar           addmode;
-	Char            lOp;
+	unsigned char           addmode;
+	char            lOp;
 	boolean         immediate, operandFlag;
 	/* ! Funktion muß noch untersucht werden... */
-	Char            lrOp3[4];
-	Char            lrOp2[3];
-	uchar           actOpcode, actCpu;
+	char            lrOp3[4];
+	char            lrOp2[3];
+	unsigned char           actOpcode, actCpu;
 	short           branch;
-	uchar           branch2;
+	unsigned char           branch2;
 	unsigned short  branch3;
 
-	Char            curL[256];
+	char            curL[256];
 
-	uchar           Cpos, s;
+	unsigned char           Cpos, s;
 	numbertype      number, number2;
-	Char            STR4[256], STR5[256];
-	Char            STR6[256];
+	char            STR4[256], STR5[256];
+	char            STR6[256];
 
 	strcpy(Line, Line_);
 	s = FindSeparator(Line);
@@ -1639,7 +1701,7 @@ _LnMnemo:
 }
 
 
-Static Char    *
+char    *
 ReadLine()
 {
 	char *s;
@@ -1655,23 +1717,23 @@ int
 AssembleZ80(char *a, char *Line_)
 {
 	int aLen;
-	Char            Line[256];
-	uchar           ins;
-	Char            Mnemo[256], UMnemo[256];
-	Char            Operands[256], UOperands[256], Operands2[256];
-	Char            Op1[256], Op2[256], UOp1[256], UOp2[256];
-	uchar           ArrayScan, MnemoNum;
+	char            Line[256];
+	unsigned char           ins;
+	char            Mnemo[256], UMnemo[256];
+	char            Operands[256], UOperands[256], Operands2[256];
+	char            Op1[256], Op2[256], UOp1[256], UOp2[256];
+	unsigned char           ArrayScan, MnemoNum;
 	unsigned short  Op;
-	uchar           i, po, Addmode, reg, reg8, reg16, reg162, reg816,
+	unsigned char           i, po, Addmode, reg, reg8, reg16, reg162, reg816,
 	                cond, reg81, reg82;
 	unsigned short  number;
 	short           branch;
-	uchar           branch2, Prefix, addbyte;
+	unsigned char           branch2, Prefix, addbyte;
 	boolean         addbytepresent;
-	Char            STR4[256], STR5[256];
-	Char            STR6[256];
-	Char            STR7[256];
-	Char            STR8[256];
+	char            STR4[256], STR5[256];
+	char            STR6[256];
+	char            STR7[256];
+	char            STR8[256];
 
 	strcpy(Line, Line_);
 	ins = FindSeparator(Line);
@@ -2356,13 +2418,13 @@ int
 Assemble(char *a, char *curL_)
 {
 	int aLen;
-	Char aa[256];
-	Char            *curL;
-	Char            Operand2[256], b[256];
-	Char            STR4[256];
-	Char            STR5[256];
+	char aa[256];
+	char            *curL;
+	char            Operand2[256], b[256];
+	char            STR4[256];
+	char            STR5[256];
 	unsigned short  FORLIM;
-	Char            STR6[256];
+	char            STR6[256];
 
 	curL = curL_;
 	aLen = 0;
@@ -2754,30 +2816,29 @@ _Lcodeok:
 }
 
 /* Main */
-Static unsigned short b1;
-Static uchar    b2;		/* für geheime Botschaft */
-Static Char     s[256] = "\004"; /*TODO: translation bug*/
+unsigned short b1;
+unsigned char    b2;		/* für geheime Botschaft */
+char     s[256] = "\004"; /*TODO: translation bug*/
 
 main(argc, argv)
 	int             argc;
-	Char           *argv[];
+	char           *argv[];
 {
 	int aLen;
-	Static Char*     ParameterFile;
+	char*     ParameterFile;
 	char*	ins;
-	Char            STR2[256];
-	Char            STR4[256];
-	Char            STR5[28];
+	char            STR2[256];
+	char            STR4[256];
+	char            STR5[28];
 	unsigned short  FORLIM;
-	Char            STR6[256], STR7[256], STR8[256];
-	uchar           FORLIM1;
-	Char            STR9[36];
+	char            STR6[256], STR7[256], STR8[256];
+	unsigned char           FORLIM1;
+	char            STR9[36];
 
-	PASCAL_MAIN(argc, argv);
 	SymbolsFile = NULL;
 	SaveFile = NULL;
 	OpcodesFile = NULL;
-	SourceText = (char *) Malloc(SOURCEMEM);
+	SourceText = (char *) malloc(SOURCEMEM);
 
 	// TODO: we could re-add this feature from BASIC
 	/* Co:=Environ$("6502")+" "+Command$+" " */
@@ -2786,8 +2847,8 @@ main(argc, argv)
 	printf("Copr. 1995-2008 Michael Steil. All rights reserved.\n\n");
 
 	/* geheime Botschaft */
-	if (P_argc == 2 && strlen(strcpy(STR4, P_argv[1])) == 8) {
-		strcpy(a, P_argv[1]);
+	if (argc == 2 && strlen(strcpy(STR4, argv[1])) == 8) {
+		strcpy(a, argv[1]);
 		for (i = 1; i <= 8; i++) {
 			b1 += a[i - 1] * i;
 			b2 ^= a[i - 1];
@@ -2808,11 +2869,11 @@ main(argc, argv)
 	ParameterFile = NULL;
 	SaveAs = SAVE_AS_NONE;
 	Symbols = false;
-	for (i = 1; i < P_argc; i++) {
+	for (i = 1; i < argc; i++) {
 		boolean SwitchOK;
-		if (P_argv[i][0] == '\0') continue;
-		if (P_argv[i][0] == '-') {
-			UpCaseStr(SwitchParameter, P_argv[i] + 1);
+		if (argv[i][0] == '\0') continue;
+		if (argv[i][0] == '-') {
+			UpCaseStr(SwitchParameter, argv[i] + 1);
 			if (!strcmp(SwitchParameter, "OCODE")) {
 				SaveAs = SAVE_AS_OCODE;
 			}
@@ -2848,7 +2909,7 @@ main(argc, argv)
 				exit(1);
 			}
 		} else
-			ParameterFile = P_argv[i];
+			ParameterFile = argv[i];
 	}
 
 	if (!ParameterFile) {
@@ -3029,8 +3090,6 @@ main(argc, argv)
 			SymbolsFile = freopen(SymbolsFile_NAME, "w", SymbolsFile);
 		else
 			SymbolsFile = fopen(SymbolsFile_NAME, "w");
-		if (SymbolsFile == NULL)
-			_EscIO(FileNotFound);
 		fprintf(SymbolsFile, "#    name\n");
 		FORLIM = Labels;
 		for (i = 0; i < FORLIM; i++)
@@ -3043,7 +3102,7 @@ main(argc, argv)
 	}
 	putchar('\n');
 
-	Free(SourceText);
+	free(SourceText);
 
 	if (OpcodesFile != NULL)
 		fclose(OpcodesFile);
