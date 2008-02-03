@@ -119,6 +119,7 @@
   31.01.08  02:00:00:00 Port to C...
   02.02.08  04:29:00:00 ...
             01:53:00:00 ... (Debugging)
+18:16
 */
 
 #include <p2c/p2c.h>
@@ -876,47 +877,41 @@ GetNumber(S_)
 				oldfound = 0;
 				do {
 					ArrayFound = false;
-					FORLIM = Labels;
-					for (ArrayScan = oldfound; ArrayScan < FORLIM; ArrayScan++) {
+					for (ArrayScan = oldfound; ArrayScan < Labels; ArrayScan++) {
+//printf("label scan: '%s'=%04x\n", xLabel[ArrayScan], Value[ArrayScan]);
 						if (!strcmp(xLabel[ArrayScan], S)) {
+//printf("found!\n");
 							help = ArrayScan;
 							ArrayFound = true;
-							goto _LBreak1;
+							break;
 						}
 					}
-			_LBreak1:
 					if (!ArrayFound)
-						goto _LBreak2;
+						break;
 					LValue[LLabels] = Value[help];
+printf("Label: %04x!\n", Value[help]);
 					LLabels++;
 					oldfound = help + 1;
 				} while (true);
-		_LBreak2:
+				// finished scanning through all symbols
 				if (LLabels == 0)
 					Errorstop("(1)Local label not found!");
-				if (S[0] == '+') {	/* nur Vorwärtsverweise
-							 * erlaubt */
+				if (S[0] == '+')	/* nur Vorwärtsverweise erlaubt */
+					number = 0xFFFF;
+				else	/* '-' */
 					number = 0;
-					for (i = 0; i < LLabels; i++) {
-						if (LValue[i] > opaddress && number > opaddress)
+				for (i = 0; i < LLabels; i++) {
+printf("LValue[i]: %04x, opaddress = %04x, number=%04x\n", LValue[i], opaddress, number);
+					if (((S[0] == '+') && (LValue[i] > opaddress && number > LValue[i])) ||
+						(LValue[i] <= opaddress && number < LValue[i]))
 							number = LValue[i];
-					}
-					if (number == 0)
-						Errorstop("(2)Local label not found!");
-				} else {	/* '-' */
-					number = 0;
-					for (TEMP = LLabels - 1; TEMP >= 0; TEMP--) {
-						i = TEMP;
-						if (LValue[i] <= opaddress && number < opaddress)
-							number = LValue[i];
-					}
-					if (number == 0)
-						Errorstop("(2)Local label not found!");
+				}
+				if (number == 0)
+					Errorstop("(2)Local label not found!");
 					/*
 					 * Nebeneffekt: lokales Label darf
 					 * nicht Wert 0 haben
 					 */
-				}
 			}
 		} else {	/* globales Label */
 			ArrayFound = false;
