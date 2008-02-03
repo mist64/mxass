@@ -1,0 +1,787 @@
+
+
+
+
+
+
+
+                             MXASS 0.24 User's Manual
+
+           MXASS (C) 1995-1997 Michael Steil, Eittingerstr. 11b, 85459
+                                     Berglern
+
+
+
+         Introduction .................................................1
+           What is MXASS? .............................................1
+           Why MXASS? .................................................2
+         Quickstart ...................................................2
+         Using the special features ...................................3
+           Local labels ...............................................3
+           Macros .....................................................4
+           Including constants into your object code ..................5
+            .by .......................................................5
+            .wo .......................................................5
+            .br .......................................................5
+            .tx .......................................................5
+            .ts .......................................................5
+           Linking ....................................................6
+            .include ..................................................6
+            .load .....................................................6
+           Other pseudo statements ....................................6
+            .ba .......................................................6
+            .la .......................................................6
+           Using different CPU types ..................................6
+            6502 ......................................................6
+            6502ILL ...................................................6
+            65C02 .....................................................7
+            65816 or 65802 ............................................7
+            Z80 .......................................................7
+           Writing 65816 code with MXASS ..............................7
+           Writing Z80 code with MXASS ................................8
+         Command line syntax ..........................................9
+           Transferring the object code to the C64 ....................9
+            -64net ....................................................9
+            -pc64 .....................................................9
+            -transfer- ................................................9
+           Starting the program immediately after transfer ...........10
+           Saving the object code to your PC's hard disk .............10
+           Saving the symbols to your PC's hard disk .................10
+           Show mode .................................................10
+         Index .......................................................11
+
+
+         Introduction
+
+         What is MXASS?
+         MXASS is  a command line Assembler for the MOS6502/WDC65816 and
+         Z80  CPUs that runs on an MS-DOS  platform. Its main purpose is
+         to  assemble programs for a C64  or a C128, but  it can also be
+         used  for any  other computer  system running  with one  of the
+         above mentioned CPUs.
+
+
+         MXASS User's Manual
+
+
+         Why MXASS?
+         With MXASS you can edit your source codes on any MS-DOS/Windows
+         editor more comfortably, assemble it more quickly and run it on
+         a C64 with much more free memory. All the advantages are listed
+         below:
+         . Source  code is written on  a PC, using  any ASCII-editor you
+           like.
+         . Assembly time is already on a 386 much faster than any assem-
+           bler running on a C64
+         . The assembler can handle:
+           all  the documented  statements and  addressing modes  of the
+         MOS6502
+           all the undocumented ("illegal") MOS6502 statements
+           all  new 65C02  statements and  addressing modes  (e.g. "phx"
+         command,  zp-indirect addressing mode; this  processor is found
+         in CMD floppies and hard disks)
+           all  the new  WDC65802/65816 statements and  addressing modes
+         (including   16-bit  support!),  to  comfortably  program  your
+         Flash8/SuperCPU!
+           Z80 assembly  language, so you can program your C128's second
+         CPU directly!
+         . Full  support  of macros  (use them  like  built-in assembler
+           statements!)
+         . Full support of local labels (use a leading + or -)
+         . Optional transfer of the object code (and additional data) to
+           a C64 or C128 connected to the PC's parallel port via a 64NET
+           or a PC64 cable.
+         . Object  code can also be  saved to hard disk  in one of these
+           formats:  N64 (for 64NET),  P00 (for PC64),  PRG (for several
+           C64 programs) and OBJ (raw).
+         . Symbols can be saved to a text file.
+
+
+
+         Quickstart
+         Chose  your favorite ASCII-editor on your  PC and start writing
+         your program. It should look like this:
+
+         .ba $1000
+         .la strout=$ab1e
+
+              lda #<text
+              ldy #>text
+              jmp strout
+
+         text .tx "Hello, world!"
+              .by 0
+
+         Save  it as "HELLO.ASM". Now enter DOS  mode (or open a(nother)
+         DOS  box in Windows/Win95)  and call MXASS  using the following
+         command line:
+
+         if you have got a C64 connected to your PC via the 64NET cable:
+
+         MXASS HELLO.ASM -64NET -START
+
+         As  soon as the PC tells  you to press any  key, run the common
+         64NET wedge program by Paul Gardner-Stephen or MXASS' own 64NET
+         StartUp program, the do so as the PC tells you.
+
+         2
+
+
+                                                     MXASS User's Manual
+
+
+         The object code will now be transferred to your C64 and started
+         immediately.  When it wants to  return to BASIC,  it returns to
+         the 64NET  wedge program again, so that you need not start this
+         program  again to do another  transfer. If you want  to jump to
+         BASIC, you have to replace your "RTS" by a "JMP $E386".
+
+         if you have got a C64 connected to your PC via the PC64 cable:
+
+         MXASS HELLO.ASM -PC64 -START
+
+         Do the same as above, but use the PC64 StartUp program.
+
+         if you have  got no C64 connected to your PC, but the PC64 emu-
+         lator on your PC:
+
+         MXASS HELLO.ASM -P00
+
+         Then run PC64 and LOAD & SYS the P00 file.
+
+         if you have got another C64 emulator:
+
+         MXASS HELLO.ASM -PRG
+
+         The  object code file ("HELLO.PRG")  should then be  able to be
+         imported into your emulator.
+
+
+         Using the special features
+
+         Local labels
+         Local labels start  with a + or a - character. They can only be
+         defined  as labels  in the  code, not  as constants  defined by
+         ".LA".
+
+         Example:
+
+              ldx #0
+              lda #" "
+         -LOOP     sta $0400,x
+              sta $0500,x
+              sta $0600,x
+              sta $0700,x
+              inx
+              bne -LOOP
+
+         You may have as many "-LOOP" labels as you like, but this label
+         can only  be referred to from below its definition. So, a label
+         starting with  a + can only be referred to from above. If there
+         are  several local labels with the same  name, the nearest will
+         be taken by the assembler.
+
+         Second example:
+
+              inc $02
+              bne +
+              inc $03
+         +    lda ...
+
+
+
+                                                                       3
+
+
+         MXASS User's Manual
+
+
+         Here, the reference is above the definition, so you have to use
+         a + to define  a local label. You can here also see that you do
+         not need a name for a local label, a simple + or - is enough.
+
+
+         Macros
+         Macros can be defined by the following sequence:
+
+         .macro poke address,value
+              lda #value
+              sta address
+         .endmacro
+
+         (As every pseudo statement, you can abbreviate these two by us-
+         ing only its first two letters: ".ma" and ".en".)
+
+         You can refer to this macro simply be typing :
+
+              poke 53280,0
+
+         The following code will be generated:
+
+              lda #0
+              sta 53280
+
+         Note  that the symbols  "address" and "value"  are only defined
+         within the macro code.
+         If you need labels within a macro, you have to use local labels
+         (see above),  since a normal label can only be defined one. At-
+         tention:  Do not use  simple labels as  + or -  within a macro,
+         since  the assembler could assume that you  refer to this label
+         rather than to one outside. Example:
+
+         -    jsr getkey
+              jsr printkey
+              clearscreen         ; calls the macro
+
+              lda clearscreenflag
+              bne -               ; clear the screen again
+
+         We assume that the macro "clearscreen" is defined as follows:
+
+         .ma clearscreen
+              ldx #0
+              lda #" "
+         -    sta $0400,x
+              sta $0500,x
+              sta $0600,x
+              sta $0700,x
+              inx
+              bne -
+         .en
+
+         So  "bne -" in  the main routine  would refer to  the line "sta
+         $0400,x" rather than to "jsr getkey".
+         That's  why you should  give local labels  within macros unique
+         names.
+
+
+
+         4
+
+
+                                                     MXASS User's Manual
+
+
+         Including constants into your object code
+
+         .by
+         You can store constant bytes in your object code with the ".by"
+         pseudo  statement. Simply  add, separated by  commas,   as many
+         byte values as you like:
+
+         colors    .by 0,11,12,15,1,12,11,0
+         (Long form ".byte" is also allowed.)
+
+
+         .wo
+         The same is possible with words (double bytes):
+
+         table     .wo  mount,read,write,unmount  ;  defining  labels in
+         your program
+
+
+         .br
+         If you  need to reserve an amount of  bytes or want to insert a
+         block of constant bytes, you can use ".br" (bytes reserve). The
+         parameters define how many times, and what value will be stored
+         there:
+
+         buffer    .br 17*256, 0 ;  reserves 17 blocks and stores zeroes
+         in it
+
+
+         .tx
+         Text can be stored with ".tx":
+
+         error     .tx "An error occured while reading."
+              .by 0
+
+         Note that  it depends on the ASCII/PETCII configuration whether
+         the text  will be stored in ASCII or Commodore PETASCII format.
+         Use  ".ASCII" to switch to ASCII mode  and ".PETSCII" to switch
+         to Commodore  PETASCII mode. If you do not use one of these two
+         pseudo  statements, the  assembler  generates ASCII  code. Note
+         that any other reference to text constants will be converted if
+         in PETSCII mode, such as lda #"A", for instance.
+
+
+         .ts
+         Since  C64  and C128  have another  format to  store  text, the
+         screen  code, this format can  also be generated  by the assem-
+         bler:
+
+         .ba $1000
+              ldx #11
+         -    lda text,x
+              sta $0400,x
+              dex
+         bpl -
+              rts
+         text .ts "Hello World!"
+
+
+
+
+                                                                       5
+
+
+         MXASS User's Manual
+
+
+         Linking
+
+         .include
+         With  ".include" followed  by the name  of another  source text
+         file in quotes you tell MXASS to continue assembling in another
+         file.  After  that, it  will of  course continue  in  the first
+         source file. So you can split very huge source texts.
+
+         .include "floppy.inc"
+
+         .load
+         ".load" tells   MXASS to transfer an additional file to the C64
+         after  assembly is  complete. This  only works  if you  use the
+         "transfer"  switch in  the command line  (see below).  With the
+         help  of load,  you make  sure that  all of  your data  that is
+         needed by your program is really in the C64's memory. Note that
+         the first  two bytes of the file symbolize the start address in
+         memory  after  transfer (PRG  format). This  address  cannot be
+         changed by  MXASS. If you want to change  it, you have to use a
+         hex editor.
+
+         .load "sinus.dat"
+
+         Other pseudo statements
+
+         .ba
+         .ba defines the base address. It can also be changed within the
+         code, but only if the new address is above the old one.
+
+         .ba $9F00
+
+         .la
+         Define a global label like this:
+
+         .la screen=$0400
+         .la firstlineused=screen+40
+
+
+         Using different CPU types
+         MXASS can generate code for five different CPU types. What kind
+         of statements are allowed can be defined with the ".cpu" pseudo
+         statement. Is has to be followed by the CPU type:
+
+
+         6502
+         If  you specify this CPU, only 6502  legal opcodes are allowed.
+         Your program will run on any 65xx processor.
+
+
+         6502ILL
+         Same as  above, but the 6502's undocumented ("illegal") opcodes
+         are allowed.  Note that programs with illegal opcodes will nei-
+         ther  run on 65C02  (several non-Commodore disk  drives) nor on
+         65816 systems (Flash8/SuperCPU), nor on the C64DX/C65 (65CE02).
+         But there are no problems on standard C64 and C128 computers.
+
+
+
+
+
+         6
+
+
+                                                     MXASS User's Manual
+
+
+         65C02
+         In  this mode, illegal opcodes  are forbidden, but  you may use
+         the 65C02's extended instruction set.
+
+
+         65816 or 65802
+         Here you  can use all 65816 statements, which include all legal
+         6502 and all 65C02 special statements. See "" for more informa-
+         tion.
+
+
+         Z80
+         The Z80  has nothing in common with the 65xx series processors.
+         But since  the C128 has a built-in Z80, MXASS supports its full
+         instruction set.
+
+
+         Writing 65816 code with MXASS
+         The additional 65816 features can be used as follows:
+
+         The size  of the accumulator and the index registers can be set
+         with:
+
+         .al  16 bit accumulator
+         .as  8 bit accumulator
+         .rl  16 bit index registers
+         .rs  8 bit index registers
+
+         Note that this does not set any of the CPU's 8/16 flags. It has
+         only  to be defined to  let the assembler to  know what operand
+         size  it has  to store in  the object  code. Use  the "rep" and
+         "sep" instructions to tell your CPU.
+         You may define the following macros to make it easier:
+
+         .ma acculong
+              rep #%00100000
+              .al
+         .en
+         .ma accushort
+              sep #%00100000
+              .as
+         .en
+         .ma indexlong
+              rep #%00010000
+              .al
+         .en
+         .ma indexshort
+              sep #%00010000
+              .as
+         .en
+         .ma bothlong
+              rep #%00110000
+              .al
+              .rl
+         .en
+         .ma bothshort
+              sep #%00110000
+              .as
+              .rs
+
+                                                                       7
+
+
+         MXASS User's Manual
+
+
+         .en
+
+         Simply type "bothlong" in your source code and both the accumu-
+         lator and the index registers will be 16 bits long.
+
+
+         Writing Z80 code with MXASS
+         Remember  that the  existing StartUp programs  for the  C64 can
+         only  start 65xx programs.  If you  want to  start Z80 programs
+         with  these StartUps you  have to  add additional  code to your
+         program that switches the computer to Z80 mode. Use the follow-
+         ing piece of code to enable the Z80 from the C128 mode:
+
+         ;**************************************************************
+         ************
+         ; Piece of  code for a C128 program that uses both the 8502 and
+         the Z80.
+         ; Any Z80 routine can be called by a 8502 routine by "call", it
+         has to be
+         ; terminated by a "ret".
+         ;**************************************************************
+         ************
+
+         .ba $3000; start in C128 mode with BANK 0: SYS DEC("3000")
+
+         .ma call ROUTINE
+           ldx #<ROUTINE
+           ldy #>ROUTINE
+           jsr Z80CALL
+         .en
+
+         ;***                        main                        program
+         *********************************************************
+
+                 jsr Z80INIT ; needed once
+
+                 call Routine1 ; this is a Z80 routine!
+
+                 rts
+
+
+         ;***          8502/Z80          management          subroutines
+         **************************************
+         Z80INIT lda #$c3
+                 sta $ffee
+                 lda #<Z80STRT
+                 sta $ffef
+                 lda #>Z80STRT
+                 sta $fff0
+                 lda #$58
+                 sta $ffdc
+                 lda #$60
+                 sta $ffdd
+                 rts
+         Z80CALL stx Z80SFMD+1
+                 sty Z80SFMD+2
+                 jmp $ffd0
+
+          .CPU Z80
+
+         8
+
+
+                                                     MXASS User's Manual
+
+
+         Z80STRT ld sp,$8000 ; set stack
+         Z80SFMD call $FFFF
+                 jp $ffe0
+
+
+         ;                *****               Z80               routines
+         ******************************************************
+         Routine1:
+                 ld bc,$d020 ; decrements the border color and
+                 in a,(c)    ; then terminates immediately
+                 dec a
+                 out (c),a
+                 ret
+
+         If  you work with  the Commodore  Z80 microprocessor cartridge,
+         this  is more difficult, since the 6510  and the Z80 addressing
+         space  are not the same.  You have to move  your Z80 code $1000
+         bytes upwards  before enabling the Z80. If you use the Z80 emu-
+         lator  from Rossmoeller's CP/M emulator  shipped with the Flash
+         8, this is the same. Please read your manual for additional in-
+         formation.
+
+
+         Command line syntax
+         You start MXASS like this:
+
+         MXASS [-options] filename[.ASM] [-options]
+
+         It is irrelevant whether you use capital letters typing the op-
+         tions or not.
+
+         Transferring the object code to the C64
+
+         -64net
+         The switch "-64net" tells MXASS to transfer the object code and
+         all ".load"  files to a C64 connected to LPT1 via the 64NET ca-
+         ble. This  cable has been developed by Paul Gardner-Stephen and
+         used in his software 64NET. Its speed is below the speed of the
+         PC64  cable, but I decided to implement  it because really many
+         people own  this kind of cable. As soon  as the PC tells you to
+         press any  key, you have to run the 64NET cable StartUp program
+         on your C64 (if it is not already active) and then do so as the
+         PC  tells you. If you do not  have the 64NET cable StartUp pro-
+         gram, you  can also use Paul Gardner-Stephen's 64NET wedge pro-
+         gram.
+
+         -pc64
+         If you own  a PC64 cable, you have to use the switch "-pc64" to
+         tell MXASS to transfer the object code and all ".load" files to
+         a  C64 connected to LPT1 via the  PC64 cable developed by Wolf-
+         gang Lorenz, who wrote PC64 emulator. This cable makes about 10
+         Kbytes per  second on a C64, twice the  speed on a C128 in fast
+         mode and even faster on a C64 with Flash8 or SuperCPU. So it is
+         the best choice if you think about which cable you are going to
+         use.
+
+         -transfer-
+         "-transfer-" disables transfer and overrides any "-64net" or "-
+         pc64" switch before.
+
+                                                                       9
+
+
+         MXASS User's Manual
+
+
+         Starting the program immediately after transfer
+         If  you add "-start" to your command  line, the program will be
+         run immediately after transfer at the program's address in mem-
+         ory. To override this, use "-start-".
+
+
+         Saving the object code to your PC's hard disk
+         The  object code can be written to  your PC's hard disk in sev-
+         eral file formats:
+
+         OBJ
+         With "-ocode"  the object code will be written to disk as a raw
+         file without modifications.
+
+         PRG
+         With "-prg" the object code will be written to disk in PRG for-
+         mat. The first two bytes contain the program's start address in
+         memory, the object code itself follows immediately (see ".load"
+         pseudo opcode).  This file format can be read by most Commodore
+         emulators.
+
+         P00
+         With "-p00" the object code will be written to disk in PC64 P00
+         format.  This file format has a simple  header and can directly
+         be loaded within the PC64 emulator.
+
+         N64
+         With  "-p00" the object code  will be written to  disk in 64NET
+         P00  format. This file format  has a simple header  and can di-
+         rectly be read by 64NET.
+
+
+         Saving the symbols to your PC's hard disk
+         If  you add "-sym"  to your command  line, the  symbols will be
+         written  to disk after assembly is  complete. To override this,
+         use "-sym-".
+
+
+         Show mode
+         If  you add "-show" to your command  line, every line being as-
+         sembled  will be  shown on screen  while assembly.  To override
+         this, use "-show-".
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+         10
+
+
+                                                     MXASS User's Manual
+
+
+
+         Index
+
+
+                       .                                 F
+
+         .al  6
+
+         .ba  5                                          G
+         .br  4
+         .by  4                                           Flash8  2; 5; 8         .as  6                            Gardner-Stephen, Paul  2; 8
+         .include  5
+         .la  5                                          H
+         .load  5
+         .rl  6                            HELLO.ASM  2
+         .rs  6
+         .ts  4                                          I
+         .tx  4
+         .wo  4                            illegal  1; 5
+                                           introduction  1
+                       6
+                                                         L
+         -64net  8
+         64NET  2                          linking  5
+         6502  5                           local labels  3
+         6502ILL  5                        Lorenz, Wolfgang  8
+         65802  6                          LPT1  8
+         65816  1; 6
+         65C02  5                                        M
+
+                       8                   macros  2; 3; 6
+                                           MOS  1
+         8/16 flags  6                     MS-DOS  1
+
+                       A                                 N
+
+         abbreviation  3                   N64  8
+         ASCII  4
+                                                         O
+                       B
+                                           OBJ  8
+         BASIC  2                          -ocode  8
+
+                       C                                 P
+
+         C128  7                           P00  8
+         cartridge  7                      PC64  2; 8
+         clearscreen  3                    -pc64  8
+         command line  2; 5; 7             PETASCII  4
+         constants  4                      PETCII  4
+         CP/M  7                           poke  3
+         CPU types  5                      PRG  8
+                                           pseudo statements  5
+                       E
+                                                         R
+         emulator  8
+                                           rep  6
+                                           Rossmoeller  7
+
+
+                                                                      11
+
+
+         MXASS User's Manual
+
+
+                       S                   -transfer-  8
+
+         save  8                                         U
+         sep  6
+         show mode  8                      unique names  4
+         start  8
+         -start  8                                       W
+         -start-  8
+         StartUp  2; 8                     WDC  1
+         strout  2
+         SuperCPU  2; 5; 8                               Z
+         symbols  8
+                                           Z80  1; 6
+                       T
+
+         transfer  8
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+         12
