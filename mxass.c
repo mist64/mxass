@@ -120,7 +120,7 @@
   02.02.08  04:29:00:00 ...
             01:53:00:00 ... (Debugging)
             01:10:00:00 ...
-19:27
+            00:25:00:00 ...
 */
 
 #include <stdio.h>
@@ -308,8 +308,6 @@ unsigned short startaddress, times, insold;
 char     a[256];
 unsigned short Macros;
 unsigned char    ShowIndex;
-char     Header[27];	/* TODO: must be an array instead; should be
-				 * local */
 /* neu hinzugefügte Variablen */
 unsigned short i;
 unsigned char    j, ins, ins2;
@@ -2834,6 +2832,7 @@ main(argc, argv)
 	char            STR6[256], STR7[256], STR8[256];
 	unsigned char           FORLIM1;
 	char            STR9[36];
+	char Header[256];
 
 	SymbolsFile = NULL;
 	SaveFile = NULL;
@@ -2847,7 +2846,7 @@ main(argc, argv)
 	printf("Copr. 1995-2008 Michael Steil. All rights reserved.\n\n");
 
 	/* geheime Botschaft */
-	if (argc == 2 && strlen(strcpy(STR4, argv[1])) == 8) {
+	if (argc == 2 && strlen(argv[1]) == 8) {
 		strcpy(a, argv[1]);
 		for (i = 1; i <= 8; i++) {
 			b1 += a[i - 1] * i;
@@ -3067,7 +3066,7 @@ main(argc, argv)
 			SaveFile = fopen(SaveFile_NAME, "w+b");
 			SPetscii(Header, Filename);
 			fwrite("C64File", 8, 1, SaveFile);
-			fwrite(Header, strlen(Header), 1, SaveFile);
+			fwrite(Header, strlen(Header)<=16?strlen(Header):16, 1, SaveFile);
 			for (i=strlen(Header); i<18; i++)
 				fputc(0, SaveFile);
 			fwrite(&startaddress, sizeof(unsigned short), 1, SaveFile);
